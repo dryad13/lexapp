@@ -1,5 +1,6 @@
 [build]
-  command = "npm install && npm run build"
+  command = "npm install && npm run build --workspace firm-portal"
+  publish = "apps/firm-portal/.next"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
