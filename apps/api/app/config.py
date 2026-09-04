@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -27,6 +28,18 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str
 
     public_base_url: str = "http://localhost:8000"
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, v: str) -> str:
+        """Render/Heroku give postgres://; SQLAlchemy async needs postgresql+asyncpg://."""
+        if not isinstance(v, str):
+            return v
+        if v.startswith("postgres://"):
+            return "postgresql+asyncpg://" + v[len("postgres://") :]
+        if v.startswith("postgresql://") and "+asyncpg" not in v:
+            return "postgresql+asyncpg://" + v[len("postgresql://") :]
+        return v
 
 
 settings = Settings()
