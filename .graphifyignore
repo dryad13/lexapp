@@ -1,0 +1,20 @@
+# Dependencies and build artifacts
+node_modules/
+.next/
+.venv/
+venv/
+__pycache__/
+dist/
+build/
+target/
+*.pyc
+
+# Archives and OS junk
+*.zip
+.DS_Store
+
+# Graphify output
+graphify-out/
+
+# Duplicate/exported copies, not the live source
+files/

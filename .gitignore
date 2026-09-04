@@ -1,0 +1,55 @@
+# Secrets and local env
+.env
+.env.*
+!.env.example
+**/env.local
+apps/env.local
+*.pem
+*.key
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Next.js / tooling
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+.vercel
+.netlify
+
+# Test / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Local agent / graph caches
+graphify-out/
+.gstack/
+
+# Large / unrelated dumps (not the live MVP)
+files/
+*.zip
+onboarding-api/
+
+# Uploads and local data
+apps/api/data/
+**/uploads/
+documents.py.save
