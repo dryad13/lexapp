@@ -53,3 +53,4 @@ onboarding-api/
 apps/api/data/
 **/uploads/
 documents.py.save
+LexAssist-3/node_modules/

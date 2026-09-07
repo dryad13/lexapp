@@ -1,0 +1,27 @@
+# Render Blueprint for LexAssist-3 (single web service + Postgres)
+services:
+  - type: web
+    name: lexassist
+    runtime: docker
+    plan: starter
+    region: oregon
+    rootDir: LexAssist-3
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lexassist3-db
+          property: connectionString
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+
+databases:
+  - name: lexassist3-db
+    plan: basic_256mb
+    region: oregon

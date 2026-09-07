@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+.git
+.local
+.agents
+.config
+**/.DS_Store
+**/dist
+artifacts/lexassist/dist
+artifacts/api-server/dist
+uploads
+*.log
+.tsbuildinfo

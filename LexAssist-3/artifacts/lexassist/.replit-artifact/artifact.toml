@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "LexAssist"
+version = "1.0.0"
+id = "artifacts/lexassist"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21560
+
+[services.development]
+run = "pnpm --filter @workspace/lexassist run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/lexassist", "run", "build" ]
+publicDir = "artifacts/lexassist/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21560"
+BASE_PATH = "/"

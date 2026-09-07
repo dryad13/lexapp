@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#1B3A6B;--royal:#2E5FA3;--steel:#4A7DB5;--pale:#EEF3FA;--silver:#F6F9FD;
+  --border:#D0DCF0;--text:#1A1A2E;--muted:#5A6A8A;--light:#8A9BB5;
+  --alert-bg:#FEF0EE;--alert-border:#C0392B;--alert-text:#7A1A1A;
+  --note-bg:#FFF9EE;--note-border:#D4700A;--note-text:#7A3A00;
+  --white:#ffffff;--sidebar-w:240px;--header-h:58px;
+  --ai-bg:#F0F4FF;--ai-border:#B8C8F0;
+}
+body{font-family:'DM Sans',sans-serif;background:#F2F5FB;color:var(--text);min-height:100vh;font-size:14px}
+h1,h2,h3,h4{font-family:'Playfair Display',serif}
+
+/* LAYOUT */
+#app{display:flex;flex-direction:column;min-height:100vh}
+#topbar{height:var(--header-h);background:var(--navy);display:flex;align-items:center;padding:0 20px;gap:16px;flex-shrink:0;position:sticky;top:0;z-index:100}
+#topbar-logo{font-family:'Playfair Display',serif;color:white;font-size:17px;font-weight:700;letter-spacing:-0.3px;white-space:nowrap}
+#topbar-badge{background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.85);font-size:11px;padding:3px 8px;border-radius:4px;font-family:'DM Mono',monospace;white-space:nowrap}
+#search-wrap{flex:1;max-width:420px;margin:0 auto;position:relative}
+#search{width:100%;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:white;padding:7px 12px 7px 34px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none}
+#search::placeholder{color:rgba(255,255,255,0.5)}
+#search:focus{background:rgba(255,255,255,0.18);border-color:rgba(255,255,255,0.4)}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,0.5);font-size:14px;pointer-events:none}
+#ai-toggle{background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;white-space:nowrap;transition:background 0.15s}
+#ai-toggle:hover{background:rgba(255,255,255,0.25)}
+#ai-toggle.active{background:rgba(100,150,255,0.35);border-color:rgba(150,180,255,0.5)}
+
+#main{display:flex;flex:1;overflow:hidden}
+
+/* SIDEBAR */
+#sidebar{width:var(--sidebar-w);background:var(--white);border-right:1px solid var(--border);flex-shrink:0;overflow-y:auto;padding:12px 0}
+.nav-section{margin-bottom:4px}
+.nav-label{font-size:10px;font-weight:500;color:var(--light);text-transform:uppercase;letter-spacing:1px;padding:6px 16px 4px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;font-size:13px;color:var(--muted);transition:all 0.1s;border-left:2px solid transparent;line-height:1.3}
+.nav-item:hover{background:var(--silver);color:var(--navy)}
+.nav-item.active{background:var(--pale);color:var(--navy);border-left-color:var(--royal);font-weight:500}
+.nav-icon{font-size:13px;flex-shrink:0;width:16px;text-align:center}
+
+/* CONTENT AREA */
+#content-area{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+#content{flex:1;max-width:860px;width:100%;margin:0 auto;padding:32px 32px 48px}
+.search-results{padding:12px 0}
+.search-result-item{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:all 0.15s}
+.search-result-item:hover{border-color:var(--royal);box-shadow:0 2px 8px rgba(46,95,163,0.1)}
+.result-section{font-size:11px;color:var(--royal);font-weight:500;margin-bottom:3px;text-transform:uppercase;letter-spacing:0.5px}
+.result-title{font-size:14px;font-weight:500;color:var(--navy);margin-bottom:4px}
+.result-snippet{font-size:12px;color:var(--muted);line-height:1.5}
+.result-snippet mark{background:#FFF3CD;color:inherit;padding:0 2px;border-radius:2px}
+
+/* PAGE HEADER */
+.page-header{margin-bottom:28px;padding-bottom:20px;border-bottom:2px solid var(--border)}
+.page-part{font-size:11px;color:var(--royal);font-weight:500;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.page-title{font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:var(--navy);line-height:1.2;margin-bottom:8px}
+.page-desc{font-size:14px;color:var(--muted);line-height:1.6}
+
+/* SECTIONS */
+.section{margin-bottom:32px}
+.section-title{font-family:'Playfair Display',serif;font-size:18px;font-weight:600;color:var(--navy);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.sub-title{font-size:14px;font-weight:500;color:var(--royal);margin:16px 0 8px}
+.body-text{font-size:13.5px;color:#3A4A6A;line-height:1.7;margin-bottom:10px}
+
+/* CALLOUTS */
+.callout{border-radius:8px;padding:12px 16px;margin:14px 0;border-left:3px solid}
+.callout-alert{background:var(--alert-bg);border-color:var(--alert-border)}
+.callout-alert .callout-label{color:var(--alert-border);font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px}
+.callout-alert .callout-text{color:var(--alert-text);font-size:13px;line-height:1.6}
+.callout-note{background:var(--note-bg);border-color:var(--note-border)}
+.callout-note .callout-label{color:var(--note-border);font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px}
+.callout-note .callout-text{color:var(--note-text);font-size:13px;line-height:1.6}
+.callout-info{background:var(--pale);border-color:var(--royal)}
+.callout-info .callout-label{color:var(--royal);font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px}
+.callout-info .callout-text{color:#2A3A5A;font-size:13px;line-height:1.6}
+
+/* TABLES */
+.kv-table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+.kv-table tr:nth-child(even) td{background:var(--silver)}
+.kv-table td{padding:9px 12px;border:1px solid var(--border);vertical-align:top;line-height:1.5}
+.kv-table td:first-child{font-weight:500;color:var(--navy);width:28%;background:var(--pale)}
+.kv-table tr:nth-child(even) td:first-child{background:#E8EFF8}
+.data-table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12.5px}
+.data-table th{background:var(--navy);color:white;padding:8px 10px;text-align:left;font-weight:500;font-size:12px}
+.data-table tr:nth-child(even) td{background:var(--silver)}
+.data-table td{padding:8px 10px;border:1px solid var(--border);vertical-align:top;line-height:1.5;color:#2A3A5A}
+
+/* BULLET LISTS */
+.blist{margin:8px 0 12px 0;padding-left:0;list-style:none}
+.blist li{position:relative;padding:4px 0 4px 18px;font-size:13.5px;color:#3A4A6A;line-height:1.6}
+.blist li::before{content:"•";position:absolute;left:4px;color:var(--royal)}
+.nlist{margin:8px 0 12px 0;padding-left:0;list-style:none;counter-reset:nlist}
+.nlist li{position:relative;padding:4px 0 4px 22px;font-size:13.5px;color:#3A4A6A;line-height:1.6;counter-increment:nlist}
+.nlist li::before{content:counter(nlist)".";position:absolute;left:2px;color:var(--royal);font-weight:500}
+
+/* CHANGE TRACKER BADGES */
+.badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:4px;font-weight:500;margin-right:4px}
+.badge-alert{background:#FDDCD9;color:#8A1A10}
+.badge-note{background:#FEF0D0;color:#7A4000}
+.badge-ok{background:#DFF5E8;color:#1A6A30}
+.date-tag{font-family:'DM Mono',monospace;font-size:11px;color:var(--royal);background:var(--pale);padding:2px 6px;border-radius:4px;white-space:nowrap}
+
+/* CASE LAW CARDS */
+.case-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px;border-left:3px solid var(--royal)}
+.case-name{font-family:'DM Mono',monospace;font-size:12.5px;color:var(--navy);font-weight:400;margin-bottom:4px}
+.case-court{font-size:11px;color:var(--muted);margin-bottom:6px}
+.case-principle{font-size:13px;color:#2A3A5A;line-height:1.6}
+
+/* AI PANEL */
+#ai-panel{width:340px;background:var(--white);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:width 0.25s}
+#ai-panel.hidden{width:0;overflow:hidden;border-left:none}
+#ai-header{padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+#ai-header-title{font-family:'Playfair Display',serif;font-size:15px;font-weight:600;color:var(--navy);margin-bottom:2px}
+#ai-header-sub{font-size:11px;color:var(--muted)}
+#ai-messages{flex:1;overflow-y:auto;padding:12px}
+.ai-msg{margin-bottom:12px;animation:fadein 0.2s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.ai-msg-user{text-align:right}
+.ai-bubble{display:inline-block;max-width:90%;padding:9px 12px;border-radius:10px;font-size:13px;line-height:1.55;text-align:left}
+.ai-bubble-user{background:var(--navy);color:white;border-radius:10px 10px 3px 10px}
+.ai-bubble-ai{background:var(--ai-bg);border:1px solid var(--ai-border);color:var(--text);border-radius:10px 10px 10px 3px}
+.ai-typing{display:flex;gap:4px;padding:10px 12px;align-items:center}
+.ai-dot{width:6px;height:6px;border-radius:50%;background:var(--royal);animation:bounce 1s infinite}
+.ai-dot:nth-child(2){animation-delay:.15s}
+.ai-dot:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}
+#ai-input-area{padding:12px;border-top:1px solid var(--border);flex-shrink:0}
+#ai-input-row{display:flex;gap:8px}
+#ai-input{flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;resize:none;line-height:1.4;color:var(--text)}
+#ai-input:focus{border-color:var(--royal)}
+#ai-send{background:var(--navy);color:white;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;white-space:nowrap}
+#ai-send:hover{background:var(--royal)}
+#ai-send:disabled{opacity:0.5;cursor:not-allowed}
+.ai-quick-btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.ai-quick-btn{background:var(--pale);border:1px solid var(--border);color:var(--navy);border-radius:6px;padding:4px 9px;font-size:11.5px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.1s}
+.ai-quick-btn:hover{background:var(--pale);border-color:var(--royal);color:var(--royal)}
+
+/* CHANGES TRACKER */
+.change-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.change-row:last-child{border-bottom:none}
+.change-date{flex-shrink:0;width:100px}
+.change-content{flex:1}
+.change-title{font-size:13.5px;color:var(--navy);font-weight:500;margin-bottom:3px;line-height:1.4}
+.change-routes{font-size:12px;color:var(--muted)}
+
+/* HOME CARDS */
+.home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:28px}
+.home-card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all 0.15s;border-top:3px solid var(--border)}
+.home-card:hover{border-color:var(--royal);border-top-color:var(--royal);box-shadow:0 4px 16px rgba(46,95,163,0.12);transform:translateY(-1px)}
+.home-card-icon{font-size:20px;margin-bottom:8px}
+.home-card-title{font-weight:500;font-size:14px;color:var(--navy);margin-bottom:4px}
+.home-card-desc{font-size:12px;color:var(--muted);line-height:1.4}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty h3{font-family:'Playfair Display',serif;color:var(--navy);margin-bottom:8px;font-size:18px}
+.empty p{font-size:13px;line-height:1.6}
+</style>
+</head>
+<body>
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">UK Immigration Practitioner's Manual — interactive reference tool incorporating HC 1691, current as at April 2026</h2>
+
+<div id="app">
+<div id="topbar">
+  <div id="topbar-logo">⚖ UK Immigration Manual</div>
+  <div id="topbar-badge">HC 1691 · Apr 2026</div>
+  <div id="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input id="search" type="text" placeholder="Search routes, cases, rules..." autocomplete="off">
+  </div>
+  <button id="ai-toggle">✦ AI Assistant</button>
+</div>
+
+<div id="main">
+<nav id="sidebar">
+  <div class="nav-section">
+    <div class="nav-label">Overview</div>
+    <div class="nav-item active" data-page="home"><span class="nav-icon">⌂</span>Home</div>
+    <div class="nav-item" data-page="framework"><span class="nav-icon">§</span>Legal Framework</div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Work Routes</div>
+    <div class="nav-item" data-page="skilled-worker"><span class="nav-icon">◈</span>Skilled Worker</div>
+    <div class="nav-item" data-page="global-talent"><span class="nav-icon">◈</span>Global Talent</div>
+    <div class="nav-item" data-page="scaleup"><span class="nav-icon">◈</span>Scale-up Worker</div>
+    <div class="nav-item" data-page="innovator"><span class="nav-icon">◈</span>Innovator Founder</div>
+    <div class="nav-item" data-page="gbm"><span class="nav-icon">◈</span>Global Business Mobility</div>
+    <div class="nav-item" data-page="yms"><span class="nav-icon">◈</span>Youth Mobility Scheme</div>
+    <div class="nav-item" data-page="ancestry"><span class="nav-icon">◈</span>UK Ancestry</div>
+    <div class="nav-item" data-page="sponsor"><span class="nav-icon">◈</span>Sponsor Compliance</div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Family & Study</div>
+    <div class="nav-item" data-page="family"><span class="nav-icon">◈</span>Family Routes (Appx FM)</div>
+    <div class="nav-item" data-page="student"><span class="nav-icon">◈</span>Student & Graduate</div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Visit & Travel</div>
+    <div class="nav-item" data-page="visit"><span class="nav-icon">◈</span>Visit Routes & ETA</div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Settlement & Status</div>
+    <div class="nav-item" data-page="settlement"><span class="nav-icon">◈</span>Settlement (ILR)</div>
+    <div class="nav-item" data-page="citizenship"><span class="nav-icon">◈</span>British Citizenship</div>
+    <div class="nav-item" data-page="euss"><span class="nav-icon">◈</span>EU Settlement Scheme</div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Protection</div>
+    <div class="nav-item" data-page="asylum"><span class="nav-icon">◈</span>Asylum & Protection</div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Procedure</div>
+    <div class="nav-item" data-page="suitability"><span class="nav-icon">◈</span>Suitability & Refusal</div>
+    <div class="nav-item" data-page="appeals"><span class="nav-icon">◈</span>Appeals & Remedies</div>
+    <div class="nav-item" data-page="deportation"><span class="nav-icon">◈</span>Deportation & Removal</div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Reference</div>
+    <div class="nav-item" data-page="caselaw"><span class="nav-icon">◈</span>Case Law Digest</div>
+    <div class="nav-item" data-page="changes"><span class="nav-icon">◈</span>2026 Changes Tracker</div>
+    <div class="nav-item" data-page="appendices"><span class="nav-icon">◈</span>Appendices Index</div>
+  </div>
+</nav>
+
+<div id="content-area">
+<div id="content"></div>
+</div>
+
+<div id="ai-panel" class="hidden">
+  <div id="ai-header">
+    <div id="ai-header-title">AI Assistant</div>
+    <div id="ai-header-sub">Ask about any immigration rule or case</div>
+  </div>
+  <div id="ai-messages">
+    <div class="ai-msg">
+      <div class="ai-bubble ai-bubble-ai">Hello. I'm your immigration law assistant, trained on the current UK Immigration Rules including HC 1691. Ask me about any route, appendix, case, or recent change.</div>
+    </div>
+  </div>
+  <div id="ai-input-area">
+    <div class="ai-quick-btns" id="quick-btns">
+      <button class="ai-quick-btn" data-q="What changed in HC 1691?">HC 1691 changes</button>
+      <button class="ai-quick-btn" data-q="What is the current Skilled Worker salary threshold?">Skilled Worker salary</button>
+      <button class="ai-quick-btn" data-q="What is the Visa Brake?">Visa Brake</button>
+      <button class="ai-quick-btn" data-q="What are the grounds for refusing an application under Part 9?">Part 9 refusal</button>
+    </div>
+    <div id="ai-input-row">
+      <textarea id="ai-input" rows="2" placeholder="Ask anything..."></textarea>
+      <button id="ai-send">Send</button>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<script>
+const PAGES = {
+home: () => `
+<div class="page-header">
+  <div class="page-part">UK Immigration Practitioner's Manual</div>
+  <div class="page-title">Reference Guide — April 2026</div>
+  <div class="page-desc">Incorporating HC 1691 (Statement of Changes, 5 March 2026). Navigate using the sidebar or search. Use the AI Assistant for instant answers.</div>
+</div>
+<div class="callout callout-alert"><div class="callout-label">⚠ Active since 26 March 2026</div><div class="callout-text">The <strong>Visa Brake</strong> is now in force. Afghan nationals cannot obtain Skilled Worker entry clearance. Nationals of Afghanistan, Cameroon, Myanmar and Sudan cannot obtain Student visas from outside the UK. Refugee protection has been reduced from 5 years to 30 months for claims from 2 March 2026. Salary pay-period compliance for Skilled Workers is mandatory from 8 April 2026.</div></div>
+<div class="home-grid">
+  <div class="home-card" data-page="skilled-worker"><div class="home-card-icon">💼</div><div class="home-card-title">Skilled Worker</div><div class="home-card-desc">Salary thresholds, pay period rules, CoS requirements</div></div>
+  <div class="home-card" data-page="family"><div class="home-card-icon">👨‍👩‍👧</div><div class="home-card-title">Family Routes</div><div class="home-card-desc">Appendix FM partners, children, parents, Article 8</div></div>
+  <div class="home-card" data-page="asylum"><div class="home-card-icon">🛡</div><div class="home-card-title">Asylum & Protection</div><div class="home-card-desc">30-month leave, refugee definition, process</div></div>
+  <div class="home-card" data-page="settlement"><div class="home-card-icon">🏠</div><div class="home-card-title">Settlement (ILR)</div><div class="home-card-desc">Qualifying periods, earned settlement proposals</div></div>
+  <div class="home-card" data-page="euss"><div class="home-card-icon">🇪🇺</div><div class="home-card-title">EUSS</div><div class="home-card-desc">Settled/pre-settled status, late applications</div></div>
+  <div class="home-card" data-page="caselaw"><div class="home-card-icon">⚖</div><div class="home-card-title">Case Law Digest</div><div class="home-card-desc">Key cases from House of Lords to UKSC 2025</div></div>
+  <div class="home-card" data-page="changes"><div class="home-card-icon">📋</div><div class="home-card-title">2026 Tracker</div><div class="home-card-desc">Full HC 1691 implementation schedule</div></div>
+  <div class="home-card" data-page="appeals"><div class="home-card-icon">🏛</div><div class="home-card-title">Appeals & Remedies</div><div class="home-card-desc">s 82 rights, AR, judicial review, UTIAC</div></div>
+</div>
+<div class="section">
+  <div class="section-title">Forthcoming changes to monitor</div>
+  <table class="data-table"><thead><tr><th>Development</th><th>Status</th><th>Expected</th></tr></thead><tbody>
+    <tr><td>Earned settlement — ILR qualifying period extended to 10 years</td><td><span class="badge badge-note">Consultation closed Feb 2026</span></td><td>Future SoC — date TBC</td></tr>
+    <tr><td>SOC 2020 revision — affects Appendix Skilled Occupations</td><td><span class="badge badge-note">ONS consultation closes 11 May 2026</span></td><td>Future SoC</td></tr>
+    <tr><td>Further submissions process moved into Rules</td><td><span class="badge badge-note">Preparatory amendments in HC 1691</span></td><td>Future SoC</td></tr>
+    <tr><td>Core protection model — renewal process Rules</td><td><span class="badge badge-alert">Not yet published</span></td><td>Future SoC</td></tr>
+    <tr><td>India CETA — service supplier route expansion</td><td><span class="badge badge-ok">HC 1691 — awaits CETA entry into force</span></td><td>TBC</td></tr>
+    <tr><td>English language settlement B2 requirement</td><td><span class="badge badge-ok">In HC 1691</span></td><td>26 March 2027</td></tr>
+  </tbody></table>
+</div>`,
+
+framework: () => `
+<div class="page-header"><div class="page-part">Part 1</div><div class="page-title">Legal Framework & Architecture</div><div class="page-desc">The legislative hierarchy, key Acts, structure of the Rules and Appendices.</div></div>
+<div class="section">
+  <div class="section-title">1.1 The Legislative Hierarchy</div>
+  <table class="data-table"><thead><tr><th>Layer</th><th>Source</th><th>Legal Force</th><th>Examples</th></tr></thead><tbody>
+    <tr><td><strong>Primary Legislation</strong></td><td>Acts of Parliament</td><td>Highest — cannot be overridden by Rules</td><td>Immigration Act 1971; NIAA 2002; Immigration Acts 2014/2016; NABA 2022; Illegal Migration Act 2023</td></tr>
+    <tr><td><strong>Immigration Rules</strong></td><td>Statement of Changes laid before Parliament</td><td>Ministerial policy — courts scrutinise compliance strictly</td><td>HC 395 and all subsequent Statements of Changes including HC 1691</td></tr>
+    <tr><td><strong>Appendices</strong></td><td>Part of the Immigration Rules</td><td>Same force as the Rules — increasingly operative</td><td>Appendix Skilled Worker, Appendix FM, Appendix EU, Appendix V</td></tr>
+    <tr><td><strong>Home Office Guidance</strong></td><td>Caseworker Instructions, IDIs, Sponsor Guidance</td><td>Not legally binding but highly influential</td><td>Sponsor Guidance volumes; Suitability guidance; Country Policy Notes</td></tr>
+  </tbody></table>
+  <div class="callout callout-note"><div class="callout-label">Practitioner note</div><div class="callout-text">The Rules are not legislation — they are a statement of ministerial policy: <em>Odelola v SSHD [2009] UKHL 25</em>. However, a decision departing from the Rules requires clear justification, usually by reference to human rights or exceptional circumstances.</div></div>
+</div>
+<div class="section">
+  <div class="section-title">1.2 Key Primary Legislation</div>
+  <table class="kv-table">
+    <tr><td>Immigration Act 1971</td><td>Foundation of all UK immigration control. s 3(1) grants/refuses leave. s 3(5) deportation power. s 24 illegal entry offence. s 24A overstaying. Schedule 2 governs examination and detention at ports.</td></tr>
+    <tr><td>NIAA 2002</td><td>Establishes the tribunal system. Part 5 (ss 82–99) statutory appeal framework. ss 117A–117C require courts to consider specified public interest considerations in Article 8 assessments.</td></tr>
+    <tr><td>Immigration Act 2014</td><td>'Deport first, appeal later' (s 94B). Minimum income requirement for family route (s 19). Right to rent scheme (ss 20–37). Power to deprive of citizenship (s 66, amending BNA 1981).</td></tr>
+    <tr><td>Immigration Act 2016</td><td>Immigration bail regime (Schedule 10). Extended deport first scheme. Criminal offences for illegal working (ss 34–35).</td></tr>
+    <tr><td>NABA 2022</td><td>Differential Group 1/2 refugee treatment (ss 12–13). Third country removal power (s 28). Illegal entry without valid clearance offence (s 40). Strengthened deprivation of citizenship (s 9).</td></tr>
+    <tr><td>Illegal Migration Act 2023</td><td>Duty to remove those arriving unlawfully (s 2). Restricts asylum claims for those arriving without leave (s 4). Many provisions uncommenced. Rwanda scheme abandoned but inadmissibility powers in NIAA 2002 s 80B remain.</td></tr>
+  </table>
+</div>
+<div class="section">
+  <div class="section-title">1.3 Key Definitions</div>
+  <table class="kv-table">
+    <tr><td>Leave to enter</td><td>Permission granted at the border (or by entry clearance). Governed by Part 1 and the specific route rules.</td></tr>
+    <tr><td>Leave to remain</td><td>Permission to stay in the UK. May be limited (with conditions) or indefinite.</td></tr>
+    <tr><td>eVisa</td><td>Digital immigration permission linked to a UKVI account. Replaces vignette stickers from 25 February 2026. Migrants must create a UKVI account and generate share codes for right to work/rent checks.</td></tr>
+    <tr><td>Section 3C leave</td><td>Statutory extension under s 3C Immigration Act 1971. Leave continues during a pending valid application and any appeal. Counts toward qualifying periods.</td></tr>
+    <tr><td>CoS</td><td>Certificate of Sponsorship — unique reference number for a Skilled Worker application. Must be assigned within 3 months of application.</td></tr>
+    <tr><td>CAS</td><td>Confirmation of Acceptance for Studies — equivalent to CoS for the Student route.</td></tr>
+    <tr><td>ILR</td><td>Indefinite Leave to Remain — settlement; permanent permission with no time limit or conditions.</td></tr>
+  </table>
+</div>`,
+
+'skilled-worker': () => `
+<div class="page-header"><div class="page-part">Work Routes — Part 2</div><div class="page-title">Skilled Worker Route</div><div class="page-desc">The primary route for overseas nationals to work in the UK under sponsorship. Governed by Appendix Skilled Worker and Appendix Skilled Occupations.</div></div>
+<div class="callout callout-alert"><div class="callout-label">⚠ Change in force — 8 April 2026</div><div class="callout-text">Pay period compliance: Sponsors must pay Skilled Workers the full CoS salary in every pay period. For monthly-paid workers, total salary in any 3-month window must equal at least one quarter of the annual CoS salary. UKVI can act without waiting for a full year of data. Non-compliance may result in cancellation of the worker's leave.</div></div>
+<div class="callout callout-alert"><div class="callout-label">⚠ Visa Brake — in force 26 March 2026</div><div class="callout-text">Entry clearance applications for the Skilled Worker route from Afghan nationals are refused, even where a CoS has already been issued. In-country applications (switches and extensions) are NOT affected. This measure is under review.</div></div>
+<div class="section">
+  <div class="section-title">Eligibility Requirements</div>
+  <table class="kv-table">
+    <tr><td>Sponsor</td><td>Must hold a valid Worker sponsor licence. CoS must be assigned, valid, and not expired (3 months). CoS must name the specific role and salary.</td></tr>
+    <tr><td>Occupation</td><td>Must appear in Appendix Skilled Occupations at RQF Level 3 or above. Each occupation has a designated SOC code and going rate salary.</td></tr>
+    <tr><td>Salary — general threshold</td><td><strong>£38,700 p.a.</strong> or the going rate for the occupation — whichever is higher. In force since April 2024.</td></tr>
+    <tr><td>Salary — new entrant rate</td><td><strong>£30,960</strong> (80% of general threshold). Applies to: recent graduates within 5 years of degree; under-26s; PhD graduates in relevant roles; switching from Student route.</td></tr>
+    <tr><td>Immigration Salary List (ISL)</td><td>Replaces Shortage Occupation List (abolished April 2024). ISL occupations attract a 20% reduction off the going rate only (not off the general threshold).</td></tr>
+    <tr><td>English language</td><td>B1 CEFR minimum for entry clearance/leave to remain. Rising to <strong>B2 for settlement</strong> from 26 March 2027.</td></tr>
+    <tr><td>Maintenance</td><td>£1,270 required. Waived if in the UK for 12+ consecutive months on leave, or if the sponsor certifies maintenance.</td></tr>
+    <tr><td>Dependants</td><td>Partner and children under 18 may apply as dependants. Currently restricted for some nationalities — check current ISL restrictions.</td></tr>
+  </table>
+</div>
+<div class="section">
+  <div class="section-title">Route Conditions</div>
+  <ul class="blist">
+    <li>Work only for the licensed sponsor in the sponsored role during normal working hours.</li>
+    <li>Supplementary work: up to 20 hours/week in any eligible occupation (RQF 3+ or same skill level) outside normal working hours.</li>
+    <li>No recourse to public funds (save for certain NHS-funded clinical roles).</li>
+    <li>Free travel in and out of the UK subject to absence rules at settlement stage.</li>
+  </ul>
+</div>
+<div class="section">
+  <div class="section-title">Settlement via Skilled Worker</div>
+  <table class="kv-table">
+    <tr><td>Qualifying period</td><td>5 years' continuous leave under Skilled Worker (and some related routes) — current position. Earned settlement proposals would extend this to 10 years: not yet in force.</td></tr>
+    <tr><td>Salary at settlement</td><td>Must meet the general threshold (£38,700 or going rate). Cannot rely on new entrant rates for ILR.</td></tr>
+    <tr><td>English language</td><td>B1 CEFR currently. B2 CEFR from 26 March 2027.</td></tr>
+    <tr><td>Life in the UK Test</td><td>Must be passed (75% pass mark, approved centre).</td></tr>
+    <tr><td>Absences</td><td>No more than 180 days in any 12-month period during the qualifying period.</td></tr>
+  </table>
+  <div class="callout callout-note"><div class="callout-label">Practitioner note</div><div class="callout-text">Earned settlement proposals (White Paper May 2025) would extend ILR qualifying period to 10 years for most work routes. Consultation closed February 2026 with 200,000+ responses. No implementation date confirmed as at April 2026. Current 5-year qualifying period remains in force. Monitor for a future Statement of Changes.</div></div>
+</div>`,
+
+'global-talent': () => `
+<div class="page-header"><div class="page-part">Work Routes — Part 2</div><div class="page-title">Global Talent Route</div><div class="page-desc">For individuals with exceptional talent or exceptional promise. No job offer required. Governed by Appendix Global Talent.</div></div>
+<div class="callout callout-alert"><div class="callout-label">⚠ New Design pathway — 1 July 2026</div><div class="callout-text">HC 1691 introduces a new Design endorsement pathway under Global Talent, endorsed by the Design Council. From 1 July 2026, design professionals not currently eligible under other Global Talent categories will be able to apply.</div></div>
+<div class="callout callout-alert"><div class="callout-label">⚠ Fast-track endorsement simplified — April 2026</div><div class="callout-text">Simplified fast-track endorsement introduced for PhD-level roles at UKRI-funded organisations, National Academy Fellows, and prize winners.</div></div>
+<div class="section">
+  <div class="section-title">Key Requirements</div>
+  <table class="kv-table">
+    <tr><td>Endorsement bodies</td><td>UK Research and Innovation (UKRI) — academia/research; Arts Council England — arts/culture; endorsing body for digital technology; Design Council — design (from 1 July 2026).</td></tr>
+    <tr><td>Exceptional Talent</td><td>Already a recognised leader in their field internationally.</td></tr>
+    <tr><td>Exceptional Promise</td><td>Potential to become a leader. Available to those without an established track record (typically earlier-career applicants).</td></tr>
+    <tr><td>Leave granted</td><td>Up to 5 years per grant. Multiple grants permitted.</td></tr>
+    <tr><td>Work rights</td><td>Full work rights — any employer, multiple employers, or self-employment. No sponsor required.</td></tr>
+    <tr><td>Settlement</td><td>3 years for Exceptional Talent; 5 years for Exceptional Promise.</td></tr>
+    <tr><td>Dependants</td><td>Permitted. Dependants also have full work rights.</td></tr>
+  </table>
+</div>`,
+
+scaleup: () => `
+<div class="page-header"><div class="page-part">Work Routes — Part 2</div><div class="page-title">Scale-up Worker Route</div><div class="page-desc">For workers at rapidly scaling UK businesses. Sponsorship obligation ends after 6 months. Governed by Appendix Scale-up.</div></div>
+<div class="section">
+  <div class="section-title">Key Requirements</div>
+  <table class="kv-table">
+    <tr><td>Sponsor requirement</td><td>Licensed Scale-up sponsor. CoS required for first 6 months only. After 6 months the worker may work for any employer — no sponsorship needed.</td></tr>
+    <tr><td>Scale-up criteria</td><td>Business must have had 20%+ average annualised growth in employees or turnover over 3 consecutive years, and have at least 10 employees at start of growth period.</td></tr>
+    <tr><td>Salary</td><td>£34,600 p.a. or the going rate for the occupation — whichever is higher.</td></tr>
+    <tr><td>Occupation</td><td>RQF Level 6 or above (graduate level). Higher than Skilled Worker threshold.</td></tr>
+    <tr><td>After 6 months</td><td>Full freedom to work for any employer. Cannot be self-employed. Must maintain the required salary level.</td></tr>
+    <tr><td>Settlement</td><td>5 years' continuous residence.</td></tr>
+  </table>
+</div>`,
+
+innovator: () => `
+<div class="page-header"><div class="page-part">Work Routes — Part 2</div><div class="page-title">Innovator Founder Route</div><div class="page-desc">For experienced businesspeople with an innovative, scalable, viable business idea. Replaced the Innovator and Start-up routes. Governed by Appendix Innovator Founder.</div></div>
+<div class="section">
+  <div class="section-title">Key Requirements</div>
+  <table class="kv-table">
+    <tr><td>Endorsement</td><td>Must be endorsed by an approved endorsing body (listed on GOV.UK). Endorsement is reassessed at 12–18 month review point.</td></tr>
+    <tr><td>Business</td><td>Must be genuinely innovative, scalable, and viable. Must be different from existing businesses in the UK. Cannot rely on intellectual property already sold or transferred.</td></tr>
+    <tr><td>Investment</td><td>No minimum investment requirement — unlike the defunct Investor route.</td></tr>
+    <tr><td>Settlement at 3 years</td><td>Business must be active and trading, and must have achieved at least 2 of: significant number of customers; at least one hire; meaningful investment; intellectual property protection.</td></tr>
+    <tr><td>Work rights</td><td>May work for your own business. Limited permission to take employed work outside the business.</td></tr>
+    <tr><td>Dependants</td><td>Permitted.</td></tr>
+  </table>
+</div>`,
+
+gbm: () => `
+<div class="page-header"><div class="page-part">Work Routes — Part 2</div><div class="page-title">Global Business Mobility (GBM) Routes</div><div class="page-desc">A family of routes for overseas workers transferred to the UK as part of multinational business activity. Replaced the Intra-Company Transfer route. Governed by Appendix Global Business Mobility routes.</div></div>
+<div class="callout callout-alert"><div class="callout-label">⚠ Secondment Worker change — 8 April 2026</div><div class="callout-text">The required overseas employment period for the Secondment Worker sub-route is reduced from 12 months to 6 months (HC 1691).</div></div>
+<div class="section">
+  <div class="section-title">Sub-routes</div>
+  <table class="data-table"><thead><tr><th>Sub-route</th><th>Who it covers</th><th>Key salary threshold</th></tr></thead><tbody>
+    <tr><td>Senior or Specialist Worker</td><td>Senior managers or specialists transferred within a multinational</td><td>£48,500 or going rate (higher)</td></tr>
+    <tr><td>Graduate Trainee</td><td>Recent graduate on structured training programme</td><td>£25,410</td></tr>
+    <tr><td>UK Expansion Worker</td><td>Overseas business establishing UK presence</td><td>£48,500 or going rate</td></tr>
+    <tr><td>Secondment Worker</td><td>Overseas employee seconded under high-value contract/investment</td><td>£48,500 or going rate; <strong>6 months' overseas employment</strong> (from April 2026)</td></tr>
+    <tr><td>Service Supplier</td><td>Contractual service supplier or independent professional</td><td>Subject to relevant international trade agreement</td></tr>
+  </tbody></table>
+</div>`,
+
+yms: () => `
+<div class="page-header"><div class="page-part">Work Routes — Part 2</div><div class="page-title">Youth Mobility Scheme</div><div class="page-desc">Allows young people from participating countries to live and work in the UK without a sponsor. Governed by Appendix Youth Mobility Scheme.</div></div>
+<div class="section">
+  <div class="section-title">Key Requirements</div>
+  <table class="kv-table">
+    <tr><td>Age</td><td>18–30 (some nationalities 18–35).</td></tr>
+    <tr><td>Eligible nationalities (2026)</td><td>Australia, Canada, New Zealand, Japan, South Korea, Taiwan, Hong Kong, India (limited quota), Andorra, Iceland, San Marino, Uruguay and others. Annual quotas apply for some. Annual allocation published on GOV.UK.</td></tr>
+    <tr><td>Work rights</td><td>Any employer. Cannot self-employ or be director of a company.</td></tr>
+    <tr><td>Study</td><td>Can study, but not as primary purpose of stay.</td></tr>
+    <tr><td>Leave</td><td>Up to 2 years (3 years for some nationalities).</td></tr>
+    <tr><td>Dependants</td><td>Not permitted.</td></tr>
+    <tr><td>Extension</td><td>Not normally permitted. Must leave and re-apply, or qualify for another route before expiry.</td></tr>
+  </table>
+</div>`,
+
+ancestry: () => `
+<div class="page-header"><div class="page-part">Work Routes — Part 2</div><div class="page-title">UK Ancestry Route</div><div class="page-desc">For Commonwealth nationals with a UK-born grandparent. Work without a sponsor. Governed by Appendix UK Ancestry.</div></div>
+<div class="section">
+  <div class="section-title">Key Requirements</div>
+  <table class="kv-table">
+    <tr><td>Eligibility</td><td>Commonwealth national. At least one grandparent born in the UK, Channel Islands, or Isle of Man. Aged 17 or over.</td></tr>
+    <tr><td>Work rights</td><td>Any employer. Self-employment is permitted.</td></tr>
+    <tr><td>Maintenance</td><td>Must be able to maintain and accommodate without recourse to public funds. No specific financial threshold — assessed on the facts.</td></tr>
+    <tr><td>Leave</td><td>5 years' leave to remain initially.</td></tr>
+    <tr><td>Settlement</td><td>After 5 years' continuous residence. Life in the UK Test required.</td></tr>
+  </table>
+</div>`,
+
+sponsor: () => `
+<div class="page-header"><div class="page-part">Work Routes — Part 2</div><div class="page-title">Sponsor Licence & Compliance</div><div class="page-desc">Requirements for employers and educational institutions wishing to sponsor migrants under work or study routes.</div></div>
+<div class="callout callout-alert"><div class="callout-label">⚠ Updated sponsor guidance — 6 March 2026</div><div class="callout-text">Updated guidance strengthens requirements around governance, salary compliance, and worker welfare obligations. Sponsors must inform sponsored workers of their employment rights. Updated versions must be downloaded and outdated internal references removed.</div></div>
+<div class="section">
+  <div class="section-title">Licence Categories</div>
+  <table class="kv-table">
+    <tr><td>Worker</td><td>Skilled Worker; Senior/Specialist Worker; Graduate Trainee; UK Expansion Worker; Secondment Worker; Charity Worker (paid); Religious Worker.</td></tr>
+    <tr><td>Temporary Worker</td><td>Creative Worker; Charity Worker (voluntary); Religious Worker (if not Worker); Seasonal Worker; International Agreement Worker; Service Supplier.</td></tr>
+  </table>
+</div>
+<div class="section">
+  <div class="section-title">Key Sponsor Duties</div>
+  <ul class="blist">
+    <li><strong>Track and monitor:</strong> Report to UKVI within 10 working days if a sponsored worker has 10 consecutive unauthorised absences.</li>
+    <li><strong>Report changes:</strong> Any change to the sponsored worker's role, salary, or working hours must be reported promptly.</li>
+    <li><strong>Right to work checks:</strong> Must be conducted before employment starts and copies retained for all employees.</li>
+    <li><strong>Record keeping:</strong> Retain copies of migrant documents, current contact details, employment records, and payroll information.</li>
+    <li><strong>Salary compliance (from 8 April 2026):</strong> Must pay the CoS salary in each pay period. UKVI actively monitors pay period compliance.</li>
+    <li><strong>Cooperate with UKVI:</strong> Allow unannounced compliance visits. Failure to cooperate is grounds for suspension or revocation.</li>
+  </ul>
+  <div class="callout callout-note"><div class="callout-label">Practitioner note</div><div class="callout-text">A sponsor licence may be suspended, downgraded (A-rating to B-rating) or revoked. Revocation prevents assignment of new CoS and triggers curtailment of all sponsored workers' leave. Judicial review of revocation decisions is possible — courts give the Home Office considerable latitude on compliance decisions, but procedural fairness must be observed.</div></div>
+</div>`,
+
+family: () => `
+<div class="page-header"><div class="page-part">Part 3</div><div class="page-title">Family Routes (Appendix FM)</div><div class="page-desc">Requirements for partners, children, parents, and adult dependent relatives. Supplemented by Appendix FM-SE (Specified Evidence).</div></div>
+<div class="section">
+  <div class="section-title">3.1 Partner Route</div>
+  <table class="kv-table">
+    <tr><td>Sponsor status</td><td>British citizen; settled person (ILR/ILE); person with refugee or humanitarian protection leave; or person with qualifying leave that permits sponsorship.</td></tr>
+    <tr><td>Relationship</td><td>Genuine and subsisting relationship. Unmarried and same-sex partners: minimum 2 years' cohabitation required.</td></tr>
+    <tr><td>Age</td><td>Both parties must be 18 or over.</td></tr>
+    <tr><td>Minimum income (MIR)</td><td><strong>£29,000 p.a.</strong> gross for new applicants (from 11 April 2024). Further increases to £34,500 and £38,700 placed on hold by the current government.</td></tr>
+    <tr><td>Savings top-up</td><td>Where income falls short: savings of £16,000+ may top up at £2,500 per £1,000 shortfall.</td></tr>
+    <tr><td>English language</td><td>A1 CEFR on entry; A2 on FLR(M); B1 for settlement. Exemptions for those 65+ and relevant disabilities.</td></tr>
+    <tr><td>No recourse to public funds</td><td>Must not require or be granted access to public funds.</td></tr>
+    <tr><td>Accommodation</td><td>Must have adequate accommodation without overcrowding.</td></tr>
+  </table>
+  <div class="callout callout-note"><div class="callout-label">Five-year and ten-year routes</div><div class="callout-text">Partners meeting eligibility normally qualify for the five-year route: 33-month FLR(M), then 30-month FLR(M), then ILR. The ten-year route applies where requirements are not fully met but removal would breach Article 8 ECHR.</div></div>
+</div>
+<div class="section">
+  <div class="section-title">3.2 Children, Parents & Adult Dependent Relatives</div>
+  <table class="kv-table">
+    <tr><td>Children</td><td>Must be under 18. Child of a British citizen, settled person, or person with qualifying leave. Where only one parent is in the UK: must show sole responsibility or serious and compelling circumstances.</td></tr>
+    <tr><td>Parents (of adult BC/settled)</td><td>Must be wholly or mainly financially dependent on sponsor. Cannot be adequately cared for in own country. No close relatives able to support there. Sponsor must maintain without recourse to public funds.</td></tr>
+    <tr><td>Adult Dependent Relatives</td><td>Requires long-term personal care due to age/illness/disability. Care must be unavailable or unaffordable in home country. Very high threshold — refusals are common.</td></tr>
+  </table>
+</div>
+<div class="section">
+  <div class="section-title">3.3 Article 8 ECHR & Appendix FM</div>
+  <ul class="blist">
+    <li>Sections 117A–117D NIAA 2002 — mandatory public interest considerations in all Article 8 assessments.</li>
+    <li>Appendix Private Life — codified route to settlement via private life (from 2022).</li>
+    <li><em>Razgar [2004] UKHL 27</em> — five-stage test for Article 8 engagement and proportionality.</li>
+    <li><em>ZH (Tanzania) [2011] UKSC 4</em> — best interests of children are a primary consideration under s 55 BCIA 2009.</li>
+    <li><em>Agyarko [2017] UKSC 11</em> — 'exceptional circumstances' test for partner cases outside the Rules.</li>
+    <li><em>MM (Lebanon) [2017] UKSC 10</em> — MIR proportionate; decision-makers not required to go beyond specified evidence.</li>
+  </ul>
+</div>`,
+
+student: () => `
+<div class="page-header"><div class="page-part">Part 4</div><div class="page-title">Student & Graduate Routes</div><div class="page-desc">Governed by Appendix Student, Appendix Graduate, and Appendix Child Student.</div></div>
+<div class="callout callout-alert"><div class="callout-label">⚠ Visa Brake — in force 26 March 2026</div><div class="callout-text">Student visa applications made from outside the UK by nationals of Afghanistan, Cameroon, Myanmar and Sudan are refused (HC 1691). In-country applications (extensions/switches) are not affected.</div></div>
+<div class="section">
+  <div class="section-title">4.1 Student Route</div>
+  <table class="kv-table">
+    <tr><td>CAS requirement</td><td>Unconditional CAS from a licensed Student sponsor. Must be unused, assigned within 6 months of application, and course must start within 6 months.</td></tr>
+    <tr><td>Level of study</td><td>RQF Level 3 or above (A-level equivalent). University Foundation Programmes accepted.</td></tr>
+    <tr><td>ATAS</td><td>Academic Technology Approval Scheme certificate required for certain sensitive postgraduate science/engineering subjects.</td></tr>
+    <tr><td>English language</td><td>B2 CEFR (university-level study); B1 CEFR (pre-sessional/foundation courses).</td></tr>
+    <tr><td>Maintenance</td><td>£1,334/month for courses in London; £1,023/month outside London. For courses of 9+ months: funds needed for 9 months only.</td></tr>
+    <tr><td>Work rights</td><td>Maximum 20 hours/week during term; full-time in vacations. Placement work permitted where integral to the course. Cannot self-employ or be director of a company.</td></tr>
+    <tr><td>Dependants</td><td>Postgraduate students (RQF 7+) at universities may bring dependants if course is 9+ months. FE college students and government-sponsored students generally cannot.</td></tr>
+  </table>
+</div>
+<div class="section">
+  <div class="section-title">4.2 Graduate Route</div>
+  <table class="kv-table">
+    <tr><td>Eligibility</td><td>Must have completed a qualifying UK degree (RQF 6+) at a licensed Student sponsor. Includes integrated Masters and Foundation Year.</td></tr>
+    <tr><td>Leave granted</td><td>2 years (3 years for PhD graduates).</td></tr>
+    <tr><td>Work rights</td><td>Full — any employer, any role, any hours. Self-employment permitted.</td></tr>
+    <tr><td>Switch</td><td>Must apply before Student leave expires. Graduate leave cannot be extended — must switch to another route before expiry.</td></tr>
+    <tr><td>Dependants</td><td>Existing dependants may extend; no new dependants permitted.</td></tr>
+  </table>
+</div>`,
+
+visit: () => `
+<div class="page-header"><div class="page-part">Part 5</div><div class="page-title">Visit Routes & Electronic Travel Authorisation</div><div class="page-desc">Governed by Appendix V, Appendix Visitor: Permitted Activities, Appendix Visitor: Visa National List, and Appendix Electronic Travel Authorisation.</div></div>
+<div class="callout callout-alert"><div class="callout-label">⚠ Visa National List change — 5 March 2026</div><div class="callout-text">Nationals of Nicaragua and St Lucia added to the Visa National List. Must now apply for a visit visa and cannot use the ETA. Transitional period allowed travel with confirmed bookings until 15:00 BST 16 April 2026.</div></div>
+<div class="callout callout-alert"><div class="callout-label">⚠ Digital pre-departure enforcement — 25 February 2026</div><div class="callout-text">Full carrier enforcement in place. Carriers must verify immigration status before boarding. eVisa must be linked to the passport used for travel. British/Irish dual nationals must travel on the correct passport or hold a Certificate of Entitlement.</div></div>
+<div class="section">
+  <div class="section-title">5.1 Standard Visitor</div>
+  <table class="kv-table">
+    <tr><td>Permitted activities</td><td>Tourism; visiting family/friends; limited business activities (no employment, no UK salary); short study (up to 6 months); sport as amateur; medical treatment; legal proceedings. Full list in Appendix Visitor: Permitted Activities.</td></tr>
+    <tr><td>Prohibited activities</td><td>Employment; operating as a sole trader; providing services to UK clients; receiving a salary from a UK source; NHS as primary purpose.</td></tr>
+    <tr><td>Duration</td><td>Up to 6 months per visit. Multi-entry visas of 2, 5, or 10 years may be granted — each stay must not exceed the permitted maximum.</td></tr>
+    <tr><td>Maintenance</td><td>Sufficient funds for the intended stay and return travel. No fixed threshold.</td></tr>
+  </table>
+</div>
+<div class="section">
+  <div class="section-title">5.2 Electronic Travel Authorisation (ETA)</div>
+  <table class="kv-table">
+    <tr><td>Who needs it</td><td>Non-visa nationals except: British and Irish citizens; residents of Ireland travelling from Ireland; those with existing UK immigration permission.</td></tr>
+    <tr><td>Cost</td><td>£10 per application.</td></tr>
+    <tr><td>Validity</td><td>2 years or until passport expiry — whichever sooner. Linked to the specific passport.</td></tr>
+    <tr><td>Application</td><td>Via the UK ETA app or GOV.UK. Usually processed immediately.</td></tr>
+    <tr><td>Carrier obligation</td><td>Carriers must verify ETA compliance before boarding — failure results in refused boarding.</td></tr>
+  </table>
+</div>`,
+
+settlement: () => `
+<div class="page-header"><div class="page-part">Part 6</div><div class="page-title">Settlement (ILR) & Leave to Remain</div><div class="page-desc">Routes to Indefinite Leave to Remain, continuous residence rules, and the earned settlement proposals.</div></div>
+<div class="callout callout-note"><div class="callout-label">Earned settlement — not yet in force</div><div class="callout-text">White Paper (May 2025) proposes extending ILR qualifying period to 10 years for most work routes, with a fast-track for high contributors. Consultation closed February 2026. No implementation date confirmed. Current qualifying periods remain in force.</div></div>
+<div class="section">
+  <div class="section-title">Settlement Routes — Overview</div>
+  <table class="data-table"><thead><tr><th>Route</th><th>Qualifying Period</th><th>Key Requirements</th></tr></thead><tbody>
+    <tr><td>Skilled Worker</td><td>5 years</td><td>Salary at general threshold; Life in UK; English B1 (B2 from Mar 2027)</td></tr>
+    <tr><td>Partner (Appendix FM)</td><td>5 years (FLR + FLR)</td><td>Genuine subsisting relationship; financial; English B1</td></tr>
+    <tr><td>Long Residence</td><td>10 years' continuous lawful residence</td><td>Life in UK; English; no excessive absences</td></tr>
+    <tr><td>Private Life</td><td>7 years (childhood) or 20 years (adult)</td><td>Appendix Private Life requirements</td></tr>
+    <tr><td>Global Talent</td><td>3 years (Exceptional Talent) / 5 years</td><td>Continued endorsement</td></tr>
+    <tr><td>Hong Kong BN(O)</td><td>5 years</td><td>BN(O) status; continuous residence</td></tr>
+    <tr><td>Refugee/Protection</td><td>5 years (pre-2 March 2026 claims)</td><td>Continuing need of sanctuary; new 30-month regime for later claims</td></tr>
+  </tbody></table>
+</div>
+<div class="section">
+  <div class="section-title">Continuous Residence Rules (Appendix Continuous Residence — updated July 2025)</div>
+  <ul class="blist">
+    <li>Work routes: No more than 180 days' absence in any 12-month period during the qualifying period.</li>
+    <li>Long Residence (10 years): No more than 540 days' total absence; no single absence exceeding 180 days (as of July 2025 amendments).</li>
+    <li>Breaks caused by exceptional circumstances (COVID-19, military service) may be disregarded with supporting evidence.</li>
+    <li>Section 3C leave counts toward the qualifying period.</li>
+  </ul>
+</div>
+<div class="section">
+  <div class="section-title">English Language at Settlement</div>
+  <p class="body-text">Currently B1 CEFR for most routes.</p>
+  <div class="callout callout-alert"><div class="callout-label">⚠ Rising to B2 from 26 March 2027</div><div class="callout-text">Settlement applications on or after 26 March 2027 must evidence B2 CEFR (speaking and listening) for: Skilled Worker, Global Talent, Scale-up, Innovator Founder, UK Ancestry, International Sportsperson, and 10-year Long Residence routes. Practitioners should identify clients approaching settlement eligibility in 2026–2027 who hold only B1 qualifications and plan retesting now.</div></div>
+</div>`,
+
+citizenship: () => `
+<div class="page-header"><div class="page-part">Part 6</div><div class="page-title">British Citizenship & Nationality</div><div class="page-desc">Naturalisation, registration, and deprivation of British citizenship under the British Nationality Act 1981.</div></div>
+<div class="section">
+  <div class="section-title">Naturalisation (s 6 BNA 1981)</div>
+  <table class="kv-table">
+    <tr><td>Section 6(1)</td><td>Adult; settled; no special connection required. 5 years' lawful residence. No more than 450 days' absence in 5-year period; no more than 90 days in final 12 months.</td></tr>
+    <tr><td>Section 6(2)</td><td>Adult married to British citizen. 3 years' lawful residence. No more than 270 days' absence in 3-year period; no more than 90 days in final 12 months.</td></tr>
+    <tr><td>ILR required</td><td>Must hold ILR (or have exempt status) at the time of application.</td></tr>
+    <tr><td>Good character</td><td>Assessed broadly: criminality, deception, financial conduct, compliance with immigration law.</td></tr>
+    <tr><td>English language</td><td>B1 CEFR minimum (English, Welsh, or Scottish Gaelic).</td></tr>
+    <tr><td>Life in the UK</td><td>Required unless exempt (age 65+, physical/mental disability).</td></tr>
+  </table>
+</div>
+<div class="section">
+  <div class="section-title">Deprivation of Citizenship (s 40 BNA 1981)</div>
+  <p class="body-text">The Secretary of State has the power to deprive a naturalised or registered citizen of citizenship on two grounds:</p>
+  <ol class="nlist">
+    <li><strong>Fraud, false representation, or concealment of material fact (s 40(3)).</strong> No statelessness bar where citizenship was obtained by naturalisation.</li>
+    <li><strong>Conducive to the public good (s 40(2)).</strong> Used for national security and serious organised crime cases. Statelessness bar applies.</li>
+  </ol>
+  <div class="callout callout-note"><div class="callout-label">Key cases</div><div class="callout-text"><em>SSHD v Kolicaj [2025] UKSC 49</em> — Supreme Court upheld deprivation for serious organised crime conviction. Confirms breadth of 'conducive to public good' power. <em>Onuzi v SSHD [2025] EWCA Civ 1337</em> — deprivation upheld for prolonged historic dishonesty; causative link confirmed even decades later. <em>SSHD v Daci [2025] EWCA Civ 18</em> — UT erred in finding deprivation unlawful.</div></div>
+</div>`,
+
+euss: () => `
+<div class="page-header"><div class="page-part">Part 7</div><div class="page-title">EU Settlement Scheme (Appendix EU)</div><div class="page-desc">Rights protection for EU, EEA and Swiss nationals and their family members resident in the UK before 31 December 2020.</div></div>
+<div class="callout callout-alert"><div class="callout-label">⚠ Appendix EU amendments — 29 April 2026</div><div class="callout-text">Technical amendments to Appendix EU under HC 1691 take effect 29 April 2026. Verify current Appendix EU text when advising on EUSS cases.</div></div>
+<div class="section">
+  <div class="section-title">EUSS Status Types</div>
+  <table class="data-table"><thead><tr><th>Status</th><th>Criteria</th><th>Leave Granted</th></tr></thead><tbody>
+    <tr><td><strong>Settled Status (ILR)</strong></td><td>5 years' continuous qualifying residence in UK before 31 Dec 2020 (or by time of application)</td><td>Indefinite. May remain, work, study, access public funds.</td></tr>
+    <tr><td><strong>Pre-Settled Status (FLR)</strong></td><td>Less than 5 years' qualifying residence but resident in UK before 31 Dec 2020</td><td>5 years' limited leave. Must apply to upgrade to Settled Status before expiry.</td></tr>
+    <tr><td><strong>Family Permit (joining)</strong></td><td>Joining EEA/Swiss national with EUSS status</td><td>Leave commensurate with sponsor's status. Restricted grounds post-June 2021.</td></tr>
+  </tbody></table>
+</div>
+<div class="section">
+  <div class="section-title">Late Applications</div>
+  <p class="body-text">Late applications (after 30 June 2021 deadline) are permitted where there are reasonable grounds for the delay. The Home Office applies a generous approach — almost any credible reason for lateness has been accepted. There is no final deadline for late applications.</p>
+  <div class="callout callout-note"><div class="callout-label">Key case — Fratila v SSHD [2021] EWCA Civ 1789</div><div class="callout-text">Pre-settled status holders have rights under the Withdrawal Agreement and cannot be denied access to in-country public funds purely on the basis of their immigration status. Significant implications for benefits advice.</div></div>
+</div>
+<div class="section">
+  <div class="section-title">Post-EUSS EEA Nationals</div>
+  <p class="body-text">EEA nationals without EUSS status are now treated as third-country nationals under the Immigration Rules. Irish citizens retain the right to live and work in the UK freely under the Common Travel Area.</p>
+</div>`,
+
+asylum: () => `
+<div class="page-header"><div class="page-part">Part 8</div><div class="page-title">Asylum & International Protection</div><div class="page-desc">The 1951 Refugee Convention, humanitarian protection, and the UK asylum process. Recent changes under HC 1691.</div></div>
+<div class="callout callout-alert"><div class="callout-label">⚠ Refugee leave reduced to 30 months — claims from 2 March 2026</div><div class="callout-text">Those granted refugee or humanitarian protection status for claims made on or after 2 March 2026 receive 30 months' leave (reduced from 5 years). Unaccompanied asylum-seeking children (UASCs) remain exempt — they continue to receive 5 years. Renewal process Rules not yet published as at April 2026.</div></div>
+<div class="callout callout-alert"><div class="callout-label">⚠ Asylum seeker work rights — from 26 March 2026</div><div class="callout-text">Asylum seekers granted permission to work (after 12 months without a decision) may now work in occupations listed in Appendix Skilled Occupations at RQF Level 6 or above. Replaces the previous restriction to the old Shortage Occupation List.</div></div>
+<div class="section">
+  <div class="section-title">8.1 The Refugee Convention Definition</div>
+  <p class="body-text">Article 1A(2) of the 1951 Convention: a person who has a <em>well-founded fear of persecution</em> for reasons of <em>race, religion, nationality, membership of a particular social group</em> (PSG), or <em>political opinion</em>; who is outside their country of nationality; and who is unable or unwilling to avail themselves of the protection of that country.</p>
+  <table class="kv-table">
+    <tr><td>Well-founded fear</td><td>Both subjective (genuine fear) and objective (reasonable degree of likelihood) elements. <em>Sivakumaran [1988] AC 958</em>.</td></tr>
+    <tr><td>Persecution</td><td>Serious harm including threats to life or liberty; serious physical violence; severe discrimination; cumulative harm. Includes non-state actors (s 5 NABA 2022).</td></tr>
+    <tr><td>PSG</td><td>Most litigated Convention reason. <em>HJ (Iran) [2010] UKSC 31</em>: sexual orientation PSGs — applicant cannot be expected to conceal identity to avoid persecution.</td></tr>
+    <tr><td>Sur place claims</td><td>Fear arising after leaving home country — e.g. political activity in UK or social media posts creating risk on return.</td></tr>
+    <tr><td>Internal relocation</td><td>Claim may fail if applicant can reasonably relocate to another part of their home country where they would be safe.</td></tr>
+  </table>
+</div>
+<div class="section">
+  <div class="section-title">8.2 The Asylum Process</div>
+  <ol class="nlist">
+    <li>Claim made — at port or in-country at a Screening Unit (Lunar House, Croydon or Liverpool).</li>
+    <li>Screening interview — biographical details, route taken, basis of claim.</li>
+    <li>Substantive interview — detailed account of fear, circumstances, events in home country.</li>
+    <li>Decision — by a Home Office Initial Decision Maker (IDM).</li>
+    <li>Appeal — to the First-tier Tribunal (Immigration and Asylum Chamber) if refused.</li>
+    <li>Upper Tribunal — error of law challenge to FTT decision.</li>
+    <li>Court of Appeal — second-tier appeal; permission required on important point of principle.</li>
+    <li>Supreme Court — final appellate level.</li>
+  </ol>
+</div>`,
+
+suitability: () => `
+<div class="page-header"><div class="page-part">Part 9</div><div class="page-title">Suitability & Grounds for Refusal</div><div class="page-desc">Part 9 of the Immigration Rules — general grounds for refusal and cancellation that apply across virtually all routes.</div></div>
+<div class="callout callout-alert"><div class="callout-label">⚠ Suspended sentences — from 26 March 2026</div><div class="callout-text">A suspended sentence of 12 months or more given on or after 22 March 2026 now triggers the criminality grounds for refusal/cancellation under Part 9. Previously, suspended sentences were not automatically caught by the 12-month rule.</div></div>
+<div class="callout callout-alert"><div class="callout-label">⚠ Prior immigration breaches — from 26 March 2026</div><div class="callout-text">A new discretionary ground of refusal applies to entry clearance applicants who have previously breached UK immigration laws (e.g. overstaying, working without permission), even if no prosecution followed.</div></div>
+<div class="section">
+  <div class="section-title">Mandatory Grounds for Refusal</div>
+  <ul class="blist">
+    <li>Exclusion from the UK by the Secretary of State on non-conducive grounds (national security, serious criminal activity, unacceptable behaviours).</li>
+    <li>Deportation order in force.</li>
+    <li>False representations or deception in an EUSS application.</li>
+  </ul>
+</div>
+<div class="section">
+  <div class="section-title">Criminality Thresholds</div>
+  <table class="kv-table">
+    <tr><td>12 months or more (including suspended from 26 March 2026)</td><td>Mandatory refusal for entry clearance. Discretionary for in-country applications. Strong presumption of deportation for foreign nationals.</td></tr>
+    <tr><td>Under 12 months</td><td>Discretionary ground for refusal. Assessed in context of the wider application and history.</td></tr>
+    <tr><td>Non-custodial sentences</td><td>May be relevant as a discretionary ground. Considered in the round.</td></tr>
+  </table>
+</div>
+<div class="section">
+  <div class="section-title">10-Year Re-Entry Ban</div>
+  <p class="body-text">Where a person is removed, deported, or leaves following refusal, a 10-year ban on re-entry applies in many circumstances. The ban runs from the date of departure. It may be waived in exceptional circumstances or where enforcement would breach human rights.</p>
+</div>`,
+
+appeals: () => `
+<div class="page-header"><div class="page-part">Part 10</div><div class="page-title">Appeals, Administrative Review & Remedies</div><div class="page-desc">The statutory appeal framework, administrative review, and judicial review in immigration cases.</div></div>
+<div class="section">
+  <div class="section-title">10.1 Rights of Appeal — s 82 NIAA 2002</div>
+  <p class="body-text">The statutory right of appeal under s 82 NIAA 2002 applies to:</p>
+  <ul class="blist">
+    <li>Refusal of a protection claim (asylum/humanitarian protection).</li>
+    <li>Refusal of a human rights claim (Article 8, Article 3 etc.).</li>
+    <li>Revocation of protection status.</li>
+  </ul>
+  <p class="body-text">Most PBS refusals and visit refusals do <strong>not</strong> carry appeal rights — they carry Administrative Review rights only.</p>
+</div>
+<div class="section">
+  <div class="section-title">10.2 Administrative Review (AR)</div>
+  <p class="body-text">Available for most non-human rights, non-protection refusals (Skilled Worker, Student, PBS in-country). Grounds are limited to: caseworker error; failure to consider submitted evidence; incorrect application of the Rules. If AR fails, judicial review remains available.</p>
+</div>
+<div class="section">
+  <div class="section-title">10.3 First-tier Tribunal (FTT(IAC))</div>
+  <table class="kv-table">
+    <tr><td>Grounds</td><td>s 84 NIAA 2002: breach of UK's human rights obligations; unlawful discrimination; not in accordance with the law or the Rules; discretionary decision should have been exercised differently.</td></tr>
+    <tr><td>Evidence</td><td>Tribunal considers all evidence up to the date of hearing (not just at the date of decision) for human rights claims.</td></tr>
+    <tr><td>Costs</td><td>No costs in asylum/human rights appeals as a general rule. Costs may be awarded for unreasonable conduct.</td></tr>
+  </table>
+</div>
+<div class="section">
+  <div class="section-title">10.4 Upper Tribunal (UTIAC)</div>
+  <p class="body-text">Hears error of law challenges to FTT decisions. Permission required from FTT or UT. Reported determinations (starred and country guidance cases) bind the FTT.</p>
+  <div class="callout callout-note"><div class="callout-label">Country Guidance cases</div><div class="callout-text">Country Guidance cases are binding on all FTT judges. They set the evidential and legal framework for particular countries. They can be departed from only if there is credible, objective evidence of a material change in country conditions. Always check whether a CG case is current before relying on it.</div></div>
+</div>
+<div class="section">
+  <div class="section-title">10.5 Judicial Review</div>
+  <ul class="blist">
+    <li>Grounds: illegality; Wednesbury irrationality; procedural unfairness; breach of legitimate expectation; breach of human rights.</li>
+    <li>Must be brought promptly — generally 3 months for immigration cases.</li>
+    <li>UTIAC has concurrent jurisdiction with the Administrative Court for many immigration JR matters.</li>
+    <li>Success rates: 15–20% across immigration JR cases overall.</li>
+    <li>Permission stage: court filter before full hearing.</li>
+  </ul>
+</div>`,
+
+deportation: () => `
+<div class="page-header"><div class="page-part">Part 11</div><div class="page-title">Deportation, Removal & Enforcement</div><div class="page-desc">Deportation under the UK Borders Act 2007, administrative removal, and immigration detention.</div></div>
+<div class="section">
+  <div class="section-title">11.1 Deportation — UK Borders Act 2007, s 32</div>
+  <table class="kv-table">
+    <tr><td>Mandatory deportation</td><td>Duty to deport where a foreign national is convicted and sentenced to 12 months or more (or for certain serious offences). Subject to exceptions under ss 33–38 (ECHR, Refugee Convention, minor).</td></tr>
+    <tr><td>Conducive deportation</td><td>Even without conviction — where deportation is conducive to the public good. Used for national security, gang membership, extremist activity.</td></tr>
+    <tr><td>Foreign criminal Article 8</td><td>s 117C NIAA 2002: Exception 1 (under 7 years in UK); Exception 2 (genuine and subsisting parental relationship with qualifying child, undue harshness); Exception 3 (partnership with settled/British person, undue harshness). Very difficult to resist deportation absent a statutory Exception.</td></tr>
+  </table>
+</div>
+<div class="section">
+  <div class="section-title">11.2 Immigration Detention</div>
+  <p class="body-text">Governed by Schedule 10, Immigration Act 2016. Detention must be for the purpose of removal and must be proportionate.</p>
+  <ul class="blist">
+    <li><em>Hardial Singh [1984] 1 WLR 704</em> — four principles: lawful purpose (removal); reasonable period; reasonable steps to effect removal; if removal not possible in reasonable time, must be released.</li>
+    <li>Rule 35 (Detention Centre Rules) — medical and torture reporting mechanism.</li>
+    <li>Adults at Risk policy — vulnerability to harm in detention must be considered.</li>
+  </ul>
+  <div class="callout callout-note"><div class="callout-label">SSHD v Almas [2025] EWHC 212</div><div class="callout-text">Substantial damages awarded for unlawful detention. Confirms that failure to comply with Hardial Singh principles can result in significant damages liability. Consider damages claims where detention has been maintained contrary to these principles.</div></div>
+</div>`,
+
+caselaw: () => `
+<div class="page-header"><div class="page-part">Part 13</div><div class="page-title">Essential Case Law Digest</div><div class="page-desc">Key decisions from the House of Lords, Supreme Court, Court of Appeal, and Upper Tribunal.</div></div>
+<div class="section">
+  <div class="section-title">Constitutional & Foundational</div>
+  <div class="case-card"><div class="case-name">Odelola v SSHD [2009] UKHL 25</div><div class="case-court">House of Lords</div><div class="case-principle">Immigration Rules are ministerial policy, not legislation. Breach creates no private law cause of action but courts scrutinise compliance with the Rules strictly.</div></div>
+  <div class="case-card"><div class="case-name">Mahad v ECO [2009] UKSC 16</div><div class="case-court">Supreme Court</div><div class="case-principle">Rules must be construed with their ordinary and natural meaning in context. Not the same as statutory construction.</div></div>
+  <div class="case-card"><div class="case-name">Patel v SSHD [2013] UKSC 72</div><div class="case-court">Supreme Court</div><div class="case-principle">Article 8 does not provide a general dispensing power from the Rules. Courts must give proper weight to Parliament's expression of public interest in ss 117A–C NIAA 2002.</div></div>
+  <div class="case-card"><div class="case-name">Agyarko v SSHD [2017] UKSC 11</div><div class="case-court">Supreme Court</div><div class="case-principle">Framework for Article 8 partner cases outside the Rules. 'Exceptional circumstances' test. Public interest considerations under s 117B must be weighed carefully.</div></div>
+</div>
+<div class="section">
+  <div class="section-title">Asylum & Protection</div>
+  <div class="case-card"><div class="case-name">R v IAT ex p Sivakumaran [1988] AC 958</div><div class="case-court">House of Lords</div><div class="case-principle">Objective test for 'well-founded fear' — a reasonable degree of likelihood of persecution. Sets the standard applied in all UK asylum cases.</div></div>
+  <div class="case-card"><div class="case-name">HJ (Iran); HT (Cameroon) [2010] UKSC 31</div><div class="case-court">Supreme Court</div><div class="case-principle">Sexual orientation PSGs — applicants cannot be expected to conceal their sexual orientation to avoid persecution. Decisive question: would they be persecuted if returned and if they lived openly?</div></div>
+  <div class="case-card"><div class="case-name">RT (Zimbabwe) [2012] UKSC 38</div><div class="case-court">Supreme Court</div><div class="case-principle">Cannot require political opponents to lie about their beliefs to avoid persecution. Parallel principle to HJ (Iran).</div></div>
+  <div class="case-card"><div class="case-name">Devaseelan v SSHD [2002] UKIAT 702</div><div class="case-court">IAT</div><div class="case-principle">Earlier Tribunal findings are the starting point in later hearings. Should be departed from only if there is a compelling reason — e.g. new evidence, fresh claim.</div></div>
+  <div class="case-card"><div class="case-name">AA (Morocco) [2025] EWCA Civ 144</div><div class="case-court">Court of Appeal 2025</div><div class="case-principle">Correct approach when UT remits on country guidance failures. Current country guidance must be applied on remittal — the UT's error in not applying it required remittal.</div></div>
+  <div class="case-card"><div class="case-name">FA (Iran) [2024] EWCA Civ 149</div><div class="case-court">Court of Appeal 2024</div><div class="case-principle">UT should have concluded that the FTT failed to apply current Iran country guidance. Failure to apply current CG constitutes an error of law.</div></div>
+</div>
+<div class="section">
+  <div class="section-title">Article 8 — Family & Private Life</div>
+  <div class="case-card"><div class="case-name">Razgar v SSHD [2004] UKHL 27</div><div class="case-court">House of Lords</div><div class="case-principle">Five-stage test for Article 8: (1) private/family life engaged; (2) interference; (3) in accordance with law; (4) necessary in democratic society; (5) proportionate.</div></div>
+  <div class="case-card"><div class="case-name">ZH (Tanzania) v SSHD [2011] UKSC 4</div><div class="case-court">Supreme Court</div><div class="case-principle">Best interests of children are a primary (not paramount) consideration in Article 8 assessments. Section 55 BCIA 2009 imposes a duty on decision-makers to consider the child's welfare.</div></div>
+  <div class="case-card"><div class="case-name">MM (Lebanon) v SSHD [2017] UKSC 10</div><div class="case-court">Supreme Court</div><div class="case-principle">Minimum income requirement for partners is proportionate. Decision-makers are not required to go beyond the specified evidence requirements in Appendix FM-SE.</div></div>
+  <div class="case-card"><div class="case-name">CAO v SSHD (Northern Ireland) [2024] UKSC 32</div><div class="case-court">Supreme Court 2024</div><div class="case-principle">Article 8 assessment — FTT committed no error in applying ZH (Tanzania) principles. Best interests of children assessed in context; British nationality is relevant but not determinative.</div></div>
+</div>
+<div class="section">
+  <div class="section-title">Citizenship Deprivation</div>
+  <div class="case-card"><div class="case-name">SSHD v Kolicaj [2025] UKSC 49</div><div class="case-court">Supreme Court — December 2025</div><div class="case-principle">Upheld deprivation of citizenship for serious organised crime conviction. Confirms the breadth of the 'conducive to the public good' power under s 40(2) BNA 1981.</div></div>
+  <div class="case-card"><div class="case-name">Onuzi v SSHD [2025] EWCA Civ 1337</div><div class="case-court">Court of Appeal — October 2025</div><div class="case-principle">Deprivation upheld for prolonged historic dishonesty in original naturalisation application. Causative link between dishonesty and grant of citizenship confirmed even decades later.</div></div>
+  <div class="case-card"><div class="case-name">SSHD v Daci [2025] EWCA Civ 18</div><div class="case-court">Court of Appeal — January 2025</div><div class="case-principle">UT erred in finding deprivation decision unlawful. SSHD entitled to conclude citizenship would have been refused had the truth been known at the time of application.</div></div>
+</div>
+<div class="section">
+  <div class="section-title">Detention</div>
+  <div class="case-card"><div class="case-name">Hardial Singh [1984] 1 WLR 704</div><div class="case-court">High Court</div><div class="case-principle">Four principles for lawfulness of immigration detention: (1) lawful purpose (removal); (2) only for a reasonable period; (3) must take all reasonable steps to effect removal; (4) if removal not possible in reasonable time, must be released.</div></div>
+  <div class="case-card"><div class="case-name">SSHD v Almas [2025] EWHC 212</div><div class="case-court">High Court — February 2025</div><div class="case-principle">Substantial damages awarded for unlawful detention. Confirms damages principles for immigration detention cases. SSHD's appeal dismissed.</div></div>
+  <div class="case-card"><div class="case-name">Hesham Ali v SSHD [2016] UKSC 60</div><div class="case-court">Supreme Court</div><div class="case-principle">Deportation Article 8 framework under ss 117A–C. Enhanced weight to public interest. Exceptions in s 117C very narrowly construed.</div></div>
+</div>`,
+
+changes: () => `
+<div class="page-header"><div class="page-part">Part 14</div><div class="page-title">2026 Changes Tracker</div><div class="page-desc">Full implementation schedule for HC 1691 (5 March 2026) and other confirmed changes.</div></div>
+<div class="section">
+  <div class="section-title">HC 1691 — All Changes & Implementation Dates</div>
+  ${[
+    ["5 Mar 2026","Visa National List: Nicaragua & St Lucia added; removed from ETA scheme","Visit / ETA","badge-alert"],
+    ["2 Mar 2026 (claims)","Refugee/humanitarian protection leave reduced from 5 years to 30 months (UASCs exempt)","Asylum / Protection","badge-alert"],
+    ["26 Mar 2026","Visa Brake: Student visa entry clearance refused for Afghan, Cameroonian, Myanmar, Sudanese nationals","Student","badge-alert"],
+    ["26 Mar 2026","Visa Brake: Skilled Worker entry clearance refused for Afghan nationals","Skilled Worker","badge-alert"],
+    ["26 Mar 2026","Suspended sentences (12 months+) added as criminality ground for refusal","All routes — suitability","badge-alert"],
+    ["26 Mar 2026","New discretionary ground for prior immigration breaches","Entry clearance — all routes","badge-alert"],
+    ["26 Mar 2026","Asylum seeker work rights expanded to RQF 6+ occupations in Appendix Skilled Occupations","Asylum seekers","badge-ok"],
+    ["29 Mar 2026","Appendix Scale-up amended","Scale-up Worker","badge-ok"],
+    ["2 Apr 2026","Appendix Visitor: Permit Free Festival List updated","Visit","badge-ok"],
+    ["8 Apr 2026","Ukraine Permission Extension Scheme: extended 24 months; 90-day application window","Ukraine scheme","badge-ok"],
+    ["8 Apr 2026","Skilled Worker pay period compliance: salary must be paid in every pay period","Skilled Worker / sponsors","badge-alert"],
+    ["8 Apr 2026","GBM Secondment Worker overseas employment reduced from 12 to 6 months","GBM routes","badge-ok"],
+    ["8 Apr 2026","Biometric reuse expanded for in-country applicants","All in-country routes","badge-ok"],
+    ["29 Apr 2026","Appendix EU technical amendments","EUSS","badge-ok"],
+    ["1 Jul 2026","Global Talent: new Design endorsement pathway (Design Council)","Global Talent","badge-note"],
+    ["1 Jul 2026","Global Talent: fast-track endorsement simplified for PhD/academic roles","Global Talent","badge-note"],
+    ["On CETA entry into force","India CETA route expansion (self-employed service suppliers)","Work routes","badge-note"],
+    ["26 Mar 2027","English language for settlement raised from B1 to B2 CEFR","Settlement — multiple routes","badge-note"]
+  ].map(([date, change, routes, badge]) => `
+  <div class="change-row">
+    <div class="change-date"><span class="date-tag">${date}</span></div>
+    <div class="change-content">
+      <div class="change-title">${change}</div>
+      <div class="change-routes"><span class="badge ${badge}">${routes}</span></div>
+    </div>
+  </div>`).join('')}
+</div>
+<div class="section">
+  <div class="section-title">Pending Developments</div>
+  <table class="kv-table">
+    <tr><td>Earned Settlement Reform</td><td>White Paper proposals to extend ILR qualifying period to 10 years. Consultation closed February 2026. No implementation date confirmed. Watch for future SoC.</td></tr>
+    <tr><td>SOC 2020 Revision</td><td>ONS consultation closes 11 May 2026. Will affect Appendix Skilled Occupations eligible roles and going rates.</td></tr>
+    <tr><td>Further Submissions in Rules</td><td>Preparatory amendments in HC 1691. Full process to be codified in a future SoC.</td></tr>
+    <tr><td>Core Protection Model</td><td>30-month refugee protection is step one. Renewal process Rules not yet published. Watch for future SoC.</td></tr>
+    <tr><td>English language B2 for settlement</td><td>Confirmed in HC 1691. In force 26 March 2027.</td></tr>
+  </table>
+</div>`,
+
+appendices: () => `
+<div class="page-header"><div class="page-part">Reference</div><div class="page-title">Appendices Index</div><div class="page-desc">Index of current Immigration Rules Appendices with a brief description of each.</div></div>
+<div class="section">
+  <table class="data-table"><thead><tr><th>Appendix</th><th>Route/Purpose</th><th>Last amended</th></tr></thead><tbody>
+    <tr><td>Appendix Skilled Worker</td><td>Main eligibility requirements for Skilled Worker route</td><td>8 Apr 2026 (HC 1691)</td></tr>
+    <tr><td>Appendix Skilled Occupations</td><td>Eligible SOC codes, skill levels, and going rates for Skilled Worker and GBM</td><td>Periodically — SOC 2020 revision pending</td></tr>
+    <tr><td>Appendix Global Talent</td><td>Global Talent route requirements and endorsed body provisions</td><td>8 Apr 2026 (HC 1691)</td></tr>
+    <tr><td>Appendix Scale-up</td><td>Scale-up Worker route</td><td>26 Mar 2026 (HC 1691)</td></tr>
+    <tr><td>Appendix Innovator Founder</td><td>Innovator Founder route</td><td>2025</td></tr>
+    <tr><td>Appendix Graduate</td><td>Graduate route (post-study work)</td><td>2025</td></tr>
+    <tr><td>Appendix Student</td><td>Student route eligibility requirements</td><td>26 Mar 2026 (HC 1691)</td></tr>
+    <tr><td>Appendix Child Student</td><td>Child Student route</td><td>2025</td></tr>
+    <tr><td>Appendix Global Business Mobility routes</td><td>All GBM sub-routes</td><td>8 Apr 2026 (HC 1691)</td></tr>
+    <tr><td>Appendix Youth Mobility Scheme</td><td>YMS participating countries and requirements</td><td>2026</td></tr>
+    <tr><td>Appendix UK Ancestry</td><td>UK Ancestry route</td><td>26 Mar 2026 (HC 1691)</td></tr>
+    <tr><td>Appendix Seasonal Worker</td><td>Seasonal agricultural and food sector work</td><td>8 Apr 2026 (HC 1691)</td></tr>
+    <tr><td>Appendix Temporary Work — Creative Worker</td><td>Creative sector temporary work</td><td>2026</td></tr>
+    <tr><td>Appendix Temporary Work — Charity Worker</td><td>Voluntary work up to 12 months</td><td>2026</td></tr>
+    <tr><td>Appendix Temporary Work — Religious Worker</td><td>Religious institutional work</td><td>2026</td></tr>
+    <tr><td>Appendix Temporary Work — International Agreement</td><td>Work under international law/trade agreements</td><td>2026</td></tr>
+    <tr><td>Appendix FM</td><td>Family Members — partners, children, parents, ADR</td><td>2025</td></tr>
+    <tr><td>Appendix FM-SE</td><td>Specified Evidence for family applications</td><td>2025</td></tr>
+    <tr><td>Appendix V: Visitor</td><td>Standard Visitor route</td><td>2026</td></tr>
+    <tr><td>Appendix Visitor: Permitted Activities</td><td>Full list of permitted visitor activities</td><td>2026</td></tr>
+    <tr><td>Appendix Visitor: Visa National List</td><td>Countries requiring a visit visa (updated 5 Mar 2026)</td><td>5 Mar 2026 (HC 1691)</td></tr>
+    <tr><td>Appendix Electronic Travel Authorisation</td><td>ETA requirements and exemptions</td><td>2026</td></tr>
+    <tr><td>Appendix EU</td><td>EU Settlement Scheme</td><td>29 Apr 2026 (HC 1691)</td></tr>
+    <tr><td>Appendix Long Residence</td><td>10-year ILR route</td><td>Jul 2025</td></tr>
+    <tr><td>Appendix Continuous Residence</td><td>Absence calculation rules for all qualifying periods</td><td>Jul 2025</td></tr>
+    <tr><td>Appendix Private Life</td><td>Codified Article 8 private life route</td><td>2022</td></tr>
+    <tr><td>Appendix English Language</td><td>Approved tests and CEFR level requirements</td><td>2025</td></tr>
+    <tr><td>Appendix Finance</td><td>Financial evidence requirements</td><td>2025</td></tr>
+    <tr><td>Appendix KOLL</td><td>Life in the UK Test and language at ILR</td><td>26 Mar 2026 (HC 1691)</td></tr>
+    <tr><td>Appendix Settlement Protection</td><td>ILR for refugees and HP holders</td><td>8 Apr 2026 (HC 1691)</td></tr>
+    <tr><td>Appendix HK British National (Overseas)</td><td>BN(O) route for Hong Kong nationals</td><td>2024</td></tr>
+    <tr><td>Appendix T2 Minister of Religion</td><td>Minister of Religion route</td><td>26 Mar 2026 (HC 1691)</td></tr>
+    <tr><td>Appendix Sports Governing Bodies</td><td>Endorsed sports governing bodies for Sportsperson route</td><td>8 Apr 2026 (HC 1691)</td></tr>
+  </tbody></table>
+</div>`
+};
+
+const SEARCH_INDEX = [
+  {p:'skilled-worker',section:'Skilled Worker Route',title:'Salary thresholds — £38,700 general; £30,960 new entrant',text:'Skilled Worker salary threshold £38,700 general threshold going rate CoS Certificate of Sponsorship sponsor licence pay period compliance April 2026'},
+  {p:'skilled-worker',section:'Skilled Worker Route',title:'Pay period compliance — 8 April 2026',text:'pay period salary compliance 8 April 2026 HC 1691 monthly paid 3 month window CoS certificate of sponsorship underpayment cancellation leave'},
+  {p:'skilled-worker',section:'Skilled Worker Route',title:'Visa Brake — Afghan nationals refused Skilled Worker',text:'visa brake Afghan nationals refused Skilled Worker entry clearance 26 March 2026 Afghanistan in-country not affected'},
+  {p:'family',section:'Family Routes',title:'Minimum income requirement — £29,000',text:'minimum income requirement MIR £29,000 partner route Appendix FM spouse civil partner unmarried partner FLR M'},
+  {p:'family',section:'Family Routes',title:'Article 8 ECHR — Razgar ZH Tanzania Agyarko',text:'Article 8 ECHR family life private life Razgar ZH Tanzania Agyarko Patel exceptional circumstances proportionality'},
+  {p:'asylum',section:'Asylum & Protection',title:'30-month refugee leave — claims from 2 March 2026',text:'30 months refugee leave humanitarian protection 2 March 2026 5 years reduced UASC unaccompanied asylum seeking children HC 1691'},
+  {p:'asylum',section:'Asylum & Protection',title:'Refugee Convention — well-founded fear, PSG, HJ Iran',text:'refugee convention well-founded fear persecution race religion nationality particular social group political opinion HJ Iran RT Zimbabwe Sivakumaran'},
+  {p:'asylum',section:'Asylum & Protection',title:'Work rights for asylum seekers — RQF 6+ from 26 March 2026',text:'asylum seeker work rights RQF 6 Appendix Skilled Occupations 26 March 2026 permission to work 12 months'},
+  {p:'settlement',section:'Settlement (ILR)',title:'Qualifying periods — 5 years Skilled Worker, 10 years Long Residence',text:'ILR indefinite leave to remain qualifying period 5 years Skilled Worker 10 years long residence continuous residence absences Life in the UK'},
+  {p:'settlement',section:'Settlement (ILR)',title:'English language B2 from 26 March 2027',text:'English language B2 CEFR settlement 26 March 2027 B1 speaking listening Skilled Worker Global Talent Scale-up'},
+  {p:'euss',section:'EU Settlement Scheme',title:'Settled and pre-settled status — Appendix EU',text:'EUSS EU Settlement Scheme settled status pre-settled status ILR free movement Withdrawal Agreement EEA Swiss nationals late applications'},
+  {p:'caselaw',section:'Case Law',title:'Odelola — Rules are ministerial policy',text:'Odelola v SSHD 2009 UKHL 25 immigration rules ministerial policy not legislation'},
+  {p:'caselaw',section:'Case Law',title:'HJ Iran — sexual orientation PSG cannot conceal',text:'HJ Iran HT Cameroon 2010 UKSC 31 sexual orientation PSG particular social group conceal identity persecution'},
+  {p:'caselaw',section:'Case Law',title:'ZH Tanzania — best interests of children',text:'ZH Tanzania 2011 UKSC 4 best interests children section 55 BCIA 2009 primary consideration'},
+  {p:'caselaw',section:'Case Law',title:'Hardial Singh — four principles of detention',text:'Hardial Singh 1984 detention principles purpose reasonable period reasonable steps release'},
+  {p:'caselaw',section:'Case Law',title:'Kolicaj UKSC 2025 — deprivation of citizenship',text:'Kolicaj 2025 UKSC 49 deprivation citizenship conducive public good organised crime section 40 BNA'},
+  {p:'caselaw',section:'Case Law',title:'Onuzi EWCA 2025 — historic dishonesty deprivation',text:'Onuzi 2025 EWCA Civ 1337 deprivation citizenship naturalisation historic dishonesty fraud'},
+  {p:'changes',section:'2026 Changes Tracker',title:'HC 1691 — full list of changes and implementation dates',text:'HC 1691 statement of changes 5 March 2026 visa brake student skilled worker refugee 30 months pay period English language B2'},
+  {p:'suitability',section:'Suitability & Refusal',title:'Suspended sentences — now trigger criminality grounds from 26 March 2026',text:'suspended sentence 12 months criminality grounds refusal cancellation Part 9 26 March 2026'},
+  {p:'suitability',section:'Suitability & Refusal',title:'Prior immigration breaches — new discretionary ground',text:'prior immigration breaches overstaying working without permission discretionary ground refusal entry clearance 26 March 2026'},
+  {p:'appeals',section:'Appeals & Remedies',title:'s 82 NIAA 2002 — appeal rights protection and human rights only',text:'section 82 NIAA 2002 appeal rights protection claim human rights claim refusal PBS no appeal administrative review'},
+  {p:'appeals',section:'Appeals & Remedies',title:'Country Guidance cases — binding on FTT',text:'country guidance cases Upper Tribunal UTIAC binding FTT First Tier Tribunal depart compelling reason'},
+  {p:'visit',section:'Visit Routes & ETA',title:'ETA — Electronic Travel Authorisation fully operational',text:'ETA electronic travel authorisation non-visa nationals mandatory fully operational 25 February 2026 digital pre-departure checks carrier'},
+  {p:'student',section:'Student & Graduate',title:'Graduate Route — 2 years post-study work',text:'Graduate route 2 years post-study work Appendix Graduate self-employment full work rights switch Skilled Worker'},
+  {p:'framework',section:'Legal Framework',title:'Immigration Acts — hierarchy of UK immigration law',text:'Immigration Act 1971 NIAA 2002 Nationality Immigration Asylum Act Immigration Act 2014 2016 NABA 2022 Illegal Migration Act 2023 hierarchy'},
+  {p:'citizenship',section:'British Citizenship',title:'Naturalisation — s 6 BNA 1981 qualifying period',text:'naturalisation British citizenship section 6 BNA 1981 5 years 3 years married ILR good character absences Life in the UK'},
+  {p:'deportation',section:'Deportation & Removal',title:'Mandatory deportation — s 32 UK Borders Act 2007',text:'mandatory deportation section 32 UK Borders Act 2007 12 months sentence foreign national duty to deport exceptions'},
+  {p:'gbm',section:'Global Business Mobility',title:'GBM routes — Senior Specialist Worker, Secondment Worker',text:'global business mobility GBM Senior Specialist Worker Graduate Trainee UK Expansion Worker Secondment Worker 6 months overseas April 2026'},
+  {p:'sponsor',section:'Sponsor Compliance',title:'Sponsor duties — report, record, right to work',text:'sponsor licence duties report track monitor right to work record keeping UKVI compliance visits revocation suspension'}
+];
+
+let currentPage = 'home';
+let aiVisible = false;
+let aiMessages = [];
+let isAiLoading = false;
+
+function navigate(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.page === page));
+  const fn = PAGES[page];
+  document.getElementById('content').innerHTML = fn ? fn() : `<div class="empty"><h3>Not found</h3><p>Page "${page}" not available.</p></div>`;
+  document.getElementById('search').value = '';
+  document.getElementById('content-area').scrollTo(0, 0);
+  document.querySelectorAll('[data-page]').forEach(el => {
+    if (!el.closest('nav') && !el.id) {
+      el.addEventListener('click', () => navigate(el.dataset.page));
+    }
+  });
+}
+
+function doSearch(q) {
+  q = q.trim().toLowerCase();
+  if (!q) { navigate(currentPage); return; }
+  const words = q.split(/\s+/).filter(w => w.length > 2);
+  const scored = SEARCH_INDEX.map(item => {
+    const haystack = (item.title + ' ' + item.text + ' ' + item.section).toLowerCase();
+    const score = words.reduce((s, w) => s + (haystack.includes(w) ? 1 : 0), 0);
+    return { ...item, score };
+  }).filter(i => i.score > 0).sort((a, b) => b.score - a.score).slice(0, 12);
+
+  function hl(str) {
+    let s = str;
+    words.forEach(w => { s = s.replace(new RegExp(w, 'gi'), m => `<mark>${m}</mark>`); });
+    return s;
+  }
+
+  if (!scored.length) {
+    document.getElementById('content').innerHTML = `<div class="empty"><h3>No results found</h3><p>Try different search terms or browse the sidebar.</p></div>`;
+    return;
+  }
+  document.getElementById('content').innerHTML = `
+    <div class="page-header"><div class="page-part">Search</div><div class="page-title">Results for "${q}"</div><div class="page-desc">${scored.length} result${scored.length !== 1 ? 's' : ''} found</div></div>
+    <div class="search-results">
+    ${scored.map(r => `
+      <div class="search-result-item" data-page="${r.p}">
+        <div class="result-section">${r.section}</div>
+        <div class="result-title">${hl(r.title)}</div>
+        <div class="result-snippet">${hl(r.text.substring(0, 120))}...</div>
+      </div>`).join('')}
+    </div>`;
+  document.querySelectorAll('.search-result-item').forEach(el => {
+    el.addEventListener('click', () => navigate(el.dataset.page));
+  });
+}
+
+const SYSTEM_PROMPT = `You are an expert UK immigration law practitioner's assistant. You have comprehensive knowledge of:
+- The UK Immigration Rules (HC 395 and all subsequent Statements of Changes, including HC 1691 published 5 March 2026)
+- All current Appendices (Appendix Skilled Worker, Appendix FM, Appendix EU, Appendix Student, Appendix Global Talent, Appendix Long Residence, Appendix Private Life, and all others)
+- Key primary legislation: Immigration Act 1971, NIAA 2002, Immigration Acts 2014/2016, NABA 2022, Illegal Migration Act 2023
+- Current case law including: Odelola [2009], HJ (Iran) [2010] UKSC 31, ZH (Tanzania) [2011] UKSC 4, Agyarko [2017] UKSC 11, Kolicaj [2025] UKSC 49, Onuzi [2025] EWCA Civ 1337, Hardial Singh [1984], and all relevant Supreme Court, Court of Appeal, and Upper Tribunal decisions
+- All changes in HC 1691 (5 March 2026): Visa Brake (Afghan nationals refused Skilled Worker entry clearance; nationals of Afghanistan, Cameroon, Myanmar, Sudan refused Student visa entry clearance from 26 March 2026); refugee leave reduced from 5 years to 30 months for claims from 2 March 2026; Skilled Worker pay period compliance from 8 April 2026; English language for settlement rising to B2 from 26 March 2027; Secondment Worker overseas employment reduced to 6 months; new criminality grounds for suspended sentences; Digital pre-departure enforcement from 25 February 2026
+
+Give precise, accurate, practitioner-level answers. Reference specific rule paragraphs, appendices, and case citations where relevant. Be concise but thorough. Note effective dates for recent changes. Do not give legal advice — provide information for practitioner reference. Current date: April 2026.`;
+
+async function askAI(question) {
+  if (isAiLoading) return;
+  isAiLoading = true;
+  document.getElementById('ai-send').disabled = true;
+
+  aiMessages.push({ role: 'user', content: question });
+  renderAIMessages();
+
+  const typingId = 'typing-' + Date.now();
+  document.getElementById('ai-messages').insertAdjacentHTML('beforeend', `
+    <div class="ai-msg" id="${typingId}">
+      <div class="ai-typing"><span class="ai-dot"></span><span class="ai-dot"></span><span class="ai-dot"></span></div>
+    </div>`);
+  scrollAI();
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: SYSTEM_PROMPT,
+        messages: aiMessages
+      })
+    });
+    const data = await resp.json();
+    const reply = data.content && data.content[0] ? data.content[0].text : 'Unable to get a response. Please try again.';
+    aiMessages.push({ role: 'assistant', content: reply });
+  } catch (e) {
+    aiMessages.push({ role: 'assistant', content: 'Connection error. Please check your network and try again.' });
+  }
+
+  const typingEl = document.getElementById(typingId);
+  if (typingEl) typingEl.remove();
+  isAiLoading = false;
+  document.getElementById('ai-send').disabled = false;
+  renderAIMessages();
+  scrollAI();
+}
+
+function renderAIMessages() {
+  const el = document.getElementById('ai-messages');
+  el.innerHTML = `<div class="ai-msg"><div class="ai-bubble ai-bubble-ai">Hello. I'm your immigration law assistant, trained on the current UK Immigration Rules including HC 1691. Ask me about any route, appendix, case, or recent change.</div></div>`;
+  aiMessages.forEach(m => {
+    const isUser = m.role === 'user';
+    el.insertAdjacentHTML('beforeend', `
+      <div class="ai-msg ${isUser ? 'ai-msg-user' : ''}">
+        <div class="ai-bubble ${isUser ? 'ai-bubble-user' : 'ai-bubble-ai'}">${m.content.replace(/\n/g, '<br>')}</div>
+      </div>`);
+  });
+}
+
+function scrollAI() {
+  const el = document.getElementById('ai-messages');
+  el.scrollTop = el.scrollHeight;
+}
+
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => navigate(el.dataset.page));
+});
+
+document.getElementById('search').addEventListener('input', e => {
+  const v = e.target.value.trim();
+  if (v.length >= 2) doSearch(v);
+  else if (!v) navigate(currentPage);
+});
+
+document.getElementById('ai-toggle').addEventListener('click', () => {
+  aiVisible = !aiVisible;
+  document.getElementById('ai-panel').classList.toggle('hidden', !aiVisible);
+  document.getElementById('ai-toggle').classList.toggle('active', aiVisible);
+});
+
+document.getElementById('ai-send').addEventListener('click', () => {
+  const input = document.getElementById('ai-input');
+  const q = input.value.trim();
+  if (q) { input.value = ''; askAI(q); }
+});
+
+document.getElementById('ai-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    const q = e.target.value.trim();
+    if (q) { e.target.value = ''; askAI(q); }
+  }
+});
+
+document.querySelectorAll('.ai-quick-btn').forEach(btn => {
+  btn.addEventListener('click', () => askAI(btn.dataset.q));
+});
+
+navigate('home');
+</script>
+</body>
+</html>

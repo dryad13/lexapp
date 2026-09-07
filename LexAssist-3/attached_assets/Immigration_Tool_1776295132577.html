@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0F1923;--navy:#1C3558;--royal:#2563EB;--sky:#3B82F6;--pale:#EFF6FF;--silver:#F8FAFF;
+  --border:#CBD5E1;--muted:#64748B;--light:#94A3B8;--white:#FFFFFF;
+  --red:#DC2626;--red-bg:#FEF2F2;--amber:#D97706;--amber-bg:#FFFBEB;
+  --green:#059669;--green-bg:#ECFDF5;--purple:#7C3AED;--purple-bg:#F5F3FF;
+  --tab-h:42px;--radius:10px;
+}
+body{font-family:'Inter',sans-serif;background:var(--silver);color:var(--ink);font-size:14px;line-height:1.6;min-height:100vh}
+
+/* HEADER */
+.hdr{background:var(--navy);padding:14px 20px;display:flex;align-items:center;gap:12px}
+.hdr-logo{font-family:'Libre Baskerville',serif;color:#fff;font-size:16px;font-weight:700}
+.hdr-tag{background:rgba(255,255,255,.15);color:rgba(255,255,255,.8);font-size:11px;padding:2px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace}
+.hdr-right{margin-left:auto;display:flex;gap:8px}
+.hdr-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-family:'Inter',sans-serif}
+.hdr-btn:hover{background:rgba(255,255,255,.22)}
+.hdr-btn.on{background:rgba(99,160,255,.35);border-color:rgba(130,180,255,.5)}
+
+/* TABS */
+.tabs{display:flex;background:var(--white);border-bottom:1px solid var(--border);overflow-x:auto}
+.tab{flex-shrink:0;padding:0 18px;height:var(--tab-h);display:flex;align-items:center;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;gap:6px;transition:all .15s}
+.tab:hover{color:var(--navy)}
+.tab.active{color:var(--royal);border-bottom-color:var(--royal)}
+.tab-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0}
+.tab-dot.red{background:var(--red)}
+.tab-dot.amber{background:var(--amber)}
+
+/* LAYOUT */
+.layout{display:flex;min-height:calc(100vh - 94px)}
+.panel{flex:1;overflow-y:auto;padding:20px}
+.panel.narrow{max-width:680px;margin:0 auto}
+.ai-sidebar{width:360px;flex-shrink:0;background:var(--white);border-left:1px solid var(--border);display:flex;flex-direction:column}
+.ai-sidebar.closed{width:0;overflow:hidden;border-left:none}
+
+/* FORM SECTIONS */
+.form-section{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;overflow:hidden}
+.form-section-hdr{padding:12px 16px;background:var(--silver);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.form-section-icon{font-size:16px}
+.form-section-title{font-family:'Libre Baskerville',serif;font-size:14px;font-weight:700;color:var(--navy)}
+.form-section-body{padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-section-body.full{grid-template-columns:1fr}
+.field{display:flex;flex-direction:column;gap:4px}
+.field.span2{grid-column:span 2}
+.field label{font-size:12px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.field input,.field select,.field textarea{border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;font-family:'Inter',sans-serif;color:var(--ink);background:var(--white);outline:none;transition:border .15s;width:100%}
+.field textarea{resize:vertical;min-height:60px}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--royal)}
+.field input::placeholder,.field textarea::placeholder{color:var(--light)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s;font-family:'Inter',sans-serif}
+.btn-primary{background:var(--navy);color:#fff}
+.btn-primary:hover{background:#2a4a70}
+.btn-secondary{background:var(--white);border:1px solid var(--border);color:var(--ink)}
+.btn-secondary:hover{background:var(--silver)}
+.btn-green{background:var(--green);color:#fff}
+.btn-green:hover{background:#047857}
+.btn-row{display:flex;gap:10px;padding:16px;border-top:1px solid var(--border);background:var(--silver)}
+
+/* RESULTS */
+.result-hdr{font-family:'Libre Baskerville',serif;font-size:18px;color:var(--navy);margin-bottom:4px}
+.result-sub{font-size:13px;color:var(--muted);margin-bottom:20px}
+.route-cards{display:flex;flex-direction:column;gap:14px;margin-bottom:24px}
+.route-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;border-left:4px solid var(--border)}
+.route-card.rank1{border-left-color:#F59E0B}
+.route-card.rank2{border-left-color:var(--royal)}
+.route-card.rank3{border-left-color:var(--green)}
+.route-card-hdr{padding:12px 16px;display:flex;align-items:flex-start;gap:10px;cursor:pointer;user-select:none}
+.route-rank{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0}
+.rank1 .route-rank{background:#FEF3C7;color:#92400E}
+.rank2 .route-rank{background:var(--pale);color:var(--royal)}
+.rank3 .route-rank{background:var(--green-bg);color:#065F46}
+.route-name{font-weight:600;font-size:14px;color:var(--navy);margin-bottom:2px}
+.route-tagline{font-size:12px;color:var(--muted)}
+.route-badges{display:flex;flex-wrap:wrap;gap:4px;margin-left:auto}
+.badge{font-size:11px;padding:2px 8px;border-radius:4px;font-weight:500;white-space:nowrap}
+.badge-ok{background:var(--green-bg);color:#065F46}
+.badge-warn{background:var(--amber-bg);color:#92400E}
+.badge-no{background:var(--red-bg);color:#991B1B}
+.badge-info{background:var(--pale);color:var(--royal)}
+.route-body{padding:0 16px 16px;display:none}
+.route-body.open{display:block}
+.req-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.req-item{background:var(--silver);border-radius:6px;padding:8px 10px;font-size:12.5px}
+.req-label{color:var(--muted);font-size:11px;font-weight:500;margin-bottom:2px;text-transform:uppercase;letter-spacing:.3px}
+.req-val{color:var(--ink);font-weight:500}
+.req-val.ok{color:var(--green)}
+.req-val.warn{color:var(--amber)}
+.req-val.no{color:var(--red)}
+.route-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.route-link{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--royal);text-decoration:none;border:1px solid var(--border);border-radius:5px;padding:4px 10px;background:var(--silver)}
+.route-link:hover{background:var(--pale);border-color:var(--royal)}
+.chevron{display:inline-block;transition:transform .2s;margin-left:auto;flex-shrink:0;font-size:12px;color:var(--muted)}
+.chevron.open{transform:rotate(180deg)}
+
+/* SALARY CALCULATOR */
+.calc-wrap{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px}
+.calc-title{font-family:'Libre Baskerville',serif;font-size:16px;color:var(--navy);margin-bottom:16px}
+.calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.calc-result{background:var(--pale);border:1px solid #BFDBFE;border-radius:8px;padding:14px 16px}
+.calc-result-label{font-size:12px;color:var(--royal);margin-bottom:4px;font-weight:500}
+.calc-result-val{font-size:22px;font-weight:600;color:var(--navy);font-family:'Libre Baskerville',serif}
+.calc-result-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.threshold-bar{margin-top:12px}
+.threshold-label{font-size:12px;color:var(--muted);margin-bottom:4px;display:flex;justify-content:space-between}
+.bar-track{background:#E2E8F0;height:8px;border-radius:4px;overflow:hidden;margin-bottom:8px}
+.bar-fill{height:100%;border-radius:4px;transition:width .4s}
+.threshold-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+.threshold-row:last-child{border-bottom:none}
+.th-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.th-name{flex:1;color:var(--muted)}
+.th-val{font-weight:500;color:var(--ink);font-family:'JetBrains Mono',monospace}
+.th-status{margin-left:8px}
+
+/* IHS/FEE CALCULATOR */
+.fee-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px}
+.fee-table th{background:var(--navy);color:#fff;padding:8px 10px;text-align:left;font-size:12px;font-weight:500}
+.fee-table tr:nth-child(even) td{background:var(--silver)}
+.fee-table td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--ink)}
+.fee-total-row td{font-weight:600;color:var(--navy);border-top:2px solid var(--navy);border-bottom:none;background:#F0F4FF!important}
+.fee-note{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
+.ihs-total{font-size:24px;font-weight:600;color:var(--navy);font-family:'Libre Baskerville',serif}
+
+/* NATIONALITY LINKS */
+.nat-section{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px}
+.nat-title{font-weight:600;font-size:13px;color:var(--navy);margin-bottom:10px}
+.nat-links{display:flex;flex-direction:column;gap:6px}
+.nat-link{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--ink);background:var(--silver);font-size:13px;transition:all .15s}
+.nat-link:hover{background:var(--pale);border-color:var(--royal);color:var(--royal)}
+.nat-link-icon{font-size:16px;flex-shrink:0}
+.nat-link-text{flex:1}
+.nat-link-arrow{color:var(--light);font-size:12px}
+
+/* ADVERSE HISTORY */
+.adverse-box{background:var(--red-bg);border:1px solid #FECACA;border-radius:8px;padding:12px 14px;margin-bottom:16px}
+.adverse-title{font-weight:600;color:var(--red);font-size:13px;margin-bottom:6px}
+.adverse-list{font-size:13px;color:#7F1D1D;list-style:none;padding:0}
+.adverse-list li{padding:3px 0;padding-left:16px;position:relative}
+.adverse-list li::before{content:"!";position:absolute;left:2px;font-weight:700;color:var(--red)}
+
+/* AI PANEL */
+.ai-hdr{padding:12px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.ai-hdr-title{font-family:'Libre Baskerville',serif;font-size:14px;font-weight:700;color:var(--navy)}
+.ai-hdr-sub{font-size:11px;color:var(--muted)}
+.ai-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.ai-msg-ai .bubble{background:var(--pale);border:1px solid #BFDBFE;color:var(--ink);border-radius:10px 10px 10px 3px;padding:9px 12px;font-size:13px;line-height:1.55;max-width:90%}
+.ai-msg-user{text-align:right}
+.ai-msg-user .bubble{background:var(--navy);color:#fff;border-radius:10px 10px 3px 10px;padding:9px 12px;font-size:13px;line-height:1.55;display:inline-block;max-width:90%;text-align:left}
+.ai-dots{display:flex;gap:4px;padding:10px 12px;align-items:center}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--royal);animation:bop 1s infinite}
+.dot:nth-child(2){animation-delay:.15s}
+.dot:nth-child(3){animation-delay:.3s}
+@keyframes bop{0%,80%,100%{transform:none}40%{transform:translateY(-5px)}}
+.ai-input-area{padding:10px;border-top:1px solid var(--border);flex-shrink:0}
+.ai-quick{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.ai-qbtn{background:var(--silver);border:1px solid var(--border);color:var(--navy);border-radius:5px;padding:3px 8px;font-size:11.5px;cursor:pointer;font-family:'Inter',sans-serif}
+.ai-qbtn:hover{background:var(--pale);border-color:var(--royal)}
+.ai-row{display:flex;gap:6px}
+.ai-input{flex:1;border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:13px;font-family:'Inter',sans-serif;outline:none;resize:none;color:var(--ink)}
+.ai-input:focus{border-color:var(--royal)}
+.ai-send{background:var(--navy);color:#fff;border:none;border-radius:6px;padding:7px 13px;cursor:pointer;font-size:13px}
+.ai-send:disabled{opacity:.5;cursor:not-allowed}
+
+/* UTILITIES */
+.tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:3px;background:var(--silver);color:var(--muted);font-family:'JetBrains Mono',monospace;margin-right:4px}
+.separator{height:1px;background:var(--border);margin:16px 0}
+.empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty h3{font-family:'Libre Baskerville',serif;color:var(--navy);margin-bottom:8px}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--pale);color:var(--royal);border-radius:4px;padding:2px 8px;font-size:12px;font-weight:500;margin:2px}
+</style>
+</head>
+<body>
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">UK Immigration Practitioner Tool — Client Profiler, Route Recommender, Salary Calculator, IHS & Fee Calculator</h2>
+
+<div class="hdr">
+  <div class="hdr-logo">⚖ UK Immigration Tool</div>
+  <div class="hdr-tag">Apr 2026 · HC 1691</div>
+  <div class="hdr-right">
+    <button class="hdr-btn on" id="ai-toggle">✦ AI Adviser</button>
+  </div>
+</div>
+
+<div class="tabs" id="tabs">
+  <div class="tab active" data-tab="profiler">👤 Client Profiler</div>
+  <div class="tab" data-tab="salary">💷 Salary Calculator</div>
+  <div class="tab" data-tab="fees">🏥 IHS & Visa Fees</div>
+  <div class="tab" data-tab="results" id="results-tab" style="display:none">📋 Route Assessment <span class="tab-dot" id="result-dot" style="display:none"></span></div>
+</div>
+
+<div class="layout">
+<div class="panel" id="main-panel">
+
+<!-- ═══ PROFILER TAB ═══ -->
+<div id="tab-profiler">
+
+<div class="form-section">
+  <div class="form-section-hdr"><span class="form-section-icon">👤</span><div class="form-section-title">Personal Details</div></div>
+  <div class="form-section-body">
+    <div class="field"><label>Full Name</label><input id="f-name" placeholder="Full name as in passport"></div>
+    <div class="field"><label>Date of Birth</label><input type="date" id="f-dob"></div>
+    <div class="field"><label>Nationality</label>
+      <select id="f-nat">
+        <option value="">— Select nationality —</option>
+        <option value="afghan">Afghan</option><option value="albanian">Albanian</option><option value="algerian">Algerian</option><option value="american">American (USA)</option><option value="australian">Australian</option><option value="bangladeshi">Bangladeshi</option><option value="brazilian">Brazilian</option><option value="british">British</option><option value="bulgarian">Bulgarian</option><option value="cameroonian">Cameroonian</option><option value="canadian">Canadian</option><option value="chinese">Chinese</option><option value="colombian">Colombian</option><option value="croatian">Croatian</option><option value="egyptian">Egyptian</option><option value="eritrean">Eritrean</option><option value="ethiopian">Ethiopian</option><option value="french">French</option><option value="german">German</option><option value="ghanaian">Ghanaian</option><option value="greek">Greek</option><option value="hong-kong">Hong Kong (Chinese)</option><option value="bn-o">Hong Kong BN(O)</option><option value="hungarian">Hungarian</option><option value="indian">Indian</option><option value="iranian">Iranian</option><option value="iraqi">Iraqi</option><option value="irish">Irish</option><option value="italian">Italian</option><option value="jamaican">Jamaican</option><option value="japanese">Japanese</option><option value="kenyan">Kenyan</option><option value="korean">South Korean</option><option value="libyan">Libyan</option><option value="malaysian">Malaysian</option><option value="moroccan">Moroccan</option><option value="myanmar">Myanmar (Burmese)</option><option value="nepalese">Nepalese</option><option value="new-zealand">New Zealander</option><option value="nigerian">Nigerian</option><option value="norwegian">Norwegian</option><option value="pakistani">Pakistani</option><option value="philippine">Filipino</option><option value="polish">Polish</option><option value="portuguese">Portuguese</option><option value="romanian">Romanian</option><option value="russian">Russian</option><option value="saudi">Saudi Arabian</option><option value="singaporean">Singaporean</option><option value="somali">Somali</option><option value="south-african">South African</option><option value="spanish">Spanish</option><option value="sri-lankan">Sri Lankan</option><option value="sudanese">Sudanese</option><option value="swedish">Swedish</option><option value="syrian">Syrian</option><option value="taiwanese">Taiwanese</option><option value="turkish">Turkish</option><option value="ugandan">Ugandan</option><option value="ukrainian">Ukrainian</option><option value="zimbabwean">Zimbabwean</option>
+        <option value="other-eu">Other EU (EEA)</option><option value="other-commonwealth">Other Commonwealth</option><option value="other">Other</option>
+      </select>
+    </div>
+    <div class="field"><label>Passport Validity</label><input type="date" id="f-passport" placeholder="Expiry date"></div>
+    <div class="field"><label>Current Location</label>
+      <select id="f-location">
+        <option value="">— Select —</option>
+        <option value="in-uk">Currently in the UK</option>
+        <option value="outside-uk">Outside the UK</option>
+      </select>
+    </div>
+    <div class="field"><label>Current Immigration Status</label>
+      <select id="f-status">
+        <option value="">— Select —</option>
+        <option value="none">No current UK leave</option>
+        <option value="visit">Visitor / Tourist</option>
+        <option value="student">Student</option>
+        <option value="graduate">Graduate visa</option>
+        <option value="skilled-worker">Skilled Worker</option>
+        <option value="partner">Partner / Spouse visa</option>
+        <option value="euss-settled">EUSS Settled Status</option>
+        <option value="euss-pre">EUSS Pre-Settled Status</option>
+        <option value="ilr">ILR / Settlement</option>
+        <option value="asylum">Asylum seeker / Refugee</option>
+        <option value="other">Other leave</option>
+        <option value="overstayed">Overstayed (no current leave)</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="form-section">
+  <div class="form-section-hdr"><span class="form-section-icon">⚠</span><div class="form-section-title">Immigration History & Adverse Factors</div></div>
+  <div class="form-section-body full">
+    <div class="field"><label>Previous UK visas / refusals / overstays</label>
+      <textarea id="f-history" placeholder="e.g. Student visa 2018–2020, visitor visa refused 2022, overstayed 3 months in 2019..."></textarea>
+    </div>
+    <div class="field"><label>Criminal convictions / adverse history</label>
+      <textarea id="f-criminal" placeholder="e.g. No convictions / Caution 2020 for theft / 6 months suspended sentence 2024 for ABH..."></textarea>
+    </div>
+  </div>
+</div>
+
+<div class="form-section">
+  <div class="form-section-hdr"><span class="form-section-icon">💼</span><div class="form-section-title">Employment, Study & Business</div></div>
+  <div class="form-section-body">
+    <div class="field span2"><label>Current employment / studies / business activity</label>
+      <textarea id="f-employment" placeholder="e.g. Software engineer at Google India earning £55k equiv., degree-level role / Student at Delhi University, Computer Science..."></textarea>
+    </div>
+    <div class="field"><label>Annual salary / income (£ or equivalent)</label><input type="number" id="f-salary" placeholder="e.g. 45000"></div>
+    <div class="field"><label>Do you have a UK sponsor / job offer?</label>
+      <select id="f-sponsor">
+        <option value="">— Select —</option>
+        <option value="yes-licensed">Yes — licensed UK sponsor / employer</option>
+        <option value="yes-not-licensed">Yes — UK employer but not yet licensed</option>
+        <option value="no">No sponsor / job offer</option>
+        <option value="self">Self-employed / own business</option>
+      </select>
+    </div>
+    <div class="field"><label>Highest qualification level</label>
+      <select id="f-qual">
+        <option value="">— Select —</option>
+        <option value="below-degree">Below degree level</option>
+        <option value="degree">Degree (UK equivalent)</option>
+        <option value="masters">Masters</option>
+        <option value="phd">PhD / Doctorate</option>
+      </select>
+    </div>
+    <div class="field"><label>English language</label>
+      <select id="f-english">
+        <option value="">— Select —</option>
+        <option value="native">Native / majority English-speaking country</option>
+        <option value="b2-plus">B2 or above (IELTS 5.5+ / equivalent)</option>
+        <option value="b1">B1 (IELTS 4.0–5.4)</option>
+        <option value="a2">A2 or below</option>
+        <option value="unknown">Unknown / not tested</option>
+      </select>
+    </div>
+    <div class="field"><label>Field of work / study</label>
+      <select id="f-field">
+        <option value="">— Select —</option>
+        <option value="health">Health & Social Care</option>
+        <option value="tech">Technology / IT / Engineering</option>
+        <option value="finance">Finance / Legal / Professional Services</option>
+        <option value="education">Education / Research / Academia</option>
+        <option value="arts">Arts / Culture / Media / Design</option>
+        <option value="business">Business / Management / HR</option>
+        <option value="trade">Skilled Trades</option>
+        <option value="seasonal">Agriculture / Seasonal</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="form-section">
+  <div class="form-section-hdr"><span class="form-section-icon">👨‍👩‍👧</span><div class="form-section-title">Family & Dependants</div></div>
+  <div class="form-section-body">
+    <div class="field"><label>Relationship to UK-based person</label>
+      <select id="f-relationship">
+        <option value="">— None / Not applicable —</option>
+        <option value="married-bc">Married to British citizen</option>
+        <option value="married-settled">Married to settled person (ILR)</option>
+        <option value="unmarried-partner">Unmarried partner (2+ years together)</option>
+        <option value="parent-british-child">Parent of British child</option>
+        <option value="child-of-bc">Child of British citizen / settled person</option>
+        <option value="euss-family">Family member of EUSS holder</option>
+      </select>
+    </div>
+    <div class="field"><label>Number of dependants to bring</label>
+      <select id="f-deps">
+        <option value="0">None</option>
+        <option value="1">1 adult dependant</option>
+        <option value="2">2 adults</option>
+        <option value="1c">1 child under 18</option>
+        <option value="2c">2 children under 18</option>
+        <option value="1a1c">1 adult + 1 child</option>
+        <option value="1a2c">1 adult + 2 children</option>
+        <option value="other">Other combination</option>
+      </select>
+    </div>
+    <div class="field"><label>Sponsor income (if family route)</label><input type="number" id="f-sponsor-income" placeholder="£ gross per annum"></div>
+    <div class="field"><label>Savings (£)</label><input type="number" id="f-savings" placeholder="£ in accessible savings"></div>
+  </div>
+</div>
+
+<div class="form-section">
+  <div class="form-section-hdr"><span class="form-section-icon">🎯</span><div class="form-section-title">Objectives</div></div>
+  <div class="form-section-body full">
+    <div class="field"><label>What visa are they seeking / why?</label>
+      <textarea id="f-objective" placeholder="e.g. Wants to join spouse who is a British citizen in Leeds, work as a nurse, long-term aim is settlement..."></textarea>
+    </div>
+    <div class="field"><label>Long-term objective</label>
+      <select id="f-longterm">
+        <option value="">— Select primary goal —</option>
+        <option value="work">Work in the UK (temporary)</option>
+        <option value="settlement">Settle permanently (ILR)</option>
+        <option value="family">Family reunion</option>
+        <option value="study">Study</option>
+        <option value="visit">Visit / tourism</option>
+        <option value="business">Business / investment</option>
+        <option value="talent">Global Talent / exceptional ability</option>
+        <option value="protection">Protection / asylum</option>
+        <option value="bnо">Hong Kong BN(O)</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="btn-row">
+  <button class="btn btn-primary" id="assess-btn">⚡ Run Route Assessment</button>
+  <button class="btn btn-secondary" id="clear-btn">✕ Clear Form</button>
+</div>
+</div>
+
+<!-- ═══ SALARY TAB ═══ -->
+<div id="tab-salary" style="display:none">
+<div class="calc-wrap">
+  <div class="calc-title">Skilled Worker Salary Threshold Calculator</div>
+  <div class="calc-grid">
+    <div class="field"><label>Annual gross salary (£)</label><input type="number" id="s-salary" placeholder="e.g. 35000" oninput="calcSalary()"></div>
+    <div class="field"><label>Applicant type</label>
+      <select id="s-type" onchange="calcSalary()">
+        <option value="general">General (standard rate)</option>
+        <option value="new-entrant">New entrant (graduate/under-26/switching from Student)</option>
+        <option value="health-care">Health & Care Worker</option>
+        <option value="phd">PhD role (new entrant rate applies)</option>
+      </select>
+    </div>
+    <div class="field"><label>Occupation going rate (£ p.a.)</label><input type="number" id="s-going" placeholder="Leave blank if unknown" oninput="calcSalary()"></div>
+    <div class="field"><label>On Immigration Salary List (ISL)?</label>
+      <select id="s-isl" onchange="calcSalary()">
+        <option value="no">No</option>
+        <option value="yes">Yes — ISL occupation (20% reduction on going rate)</option>
+      </select>
+    </div>
+  </div>
+  <div id="s-result" class="calc-result" style="display:none">
+    <div id="s-verdict"></div>
+  </div>
+  <div class="threshold-bar" id="s-bar" style="display:none">
+    <div class="threshold-label"><span>Salary compliance</span><span id="s-pct"></span></div>
+    <div class="bar-track"><div class="bar-fill" id="s-bar-fill"></div></div>
+    <div id="s-thresholds"></div>
+  </div>
+</div>
+
+<div class="calc-wrap">
+  <div class="calc-title">Other Route Salary Thresholds — Quick Reference</div>
+  <table class="fee-table">
+    <thead><tr><th>Route</th><th>Minimum salary</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Skilled Worker — General</td><td>£38,700 or going rate</td><td>Whichever is higher. New entrant rate: £30,960</td></tr>
+      <tr><td>Scale-up Worker</td><td>£34,600 or going rate</td><td>RQF 6+ only. After 6 months — no sponsor needed</td></tr>
+      <tr><td>GBM Senior/Specialist</td><td>£48,500 or going rate</td><td>Multinational transfers only</td></tr>
+      <tr><td>GBM Graduate Trainee</td><td>£25,410</td><td>Structured training programme</td></tr>
+      <tr><td>GBM Secondment Worker</td><td>£48,500 or going rate</td><td>6 months' overseas employment req. (from Apr 2026)</td></tr>
+      <tr><td>Health & Care Worker</td><td>Going rate for occupation</td><td>No ISL; IHS exempt; reduced app fee</td></tr>
+      <tr><td>Family (Partner) — MIR</td><td>£29,000 sponsor income</td><td>Savings top-up if income below threshold</td></tr>
+      <tr><td>Skilled Worker settlement</td><td>£38,700 or going rate</td><td>New entrant rates not permitted for ILR</td></tr>
+    </tbody>
+  </table>
+  <div class="fee-note">All salary thresholds as at April 2026. Immigration Salary List (ISL) occupations benefit from a 20% reduction on going rate only — the general threshold (£38,700) still applies. Pay must be met in every pay period (8 April 2026 rule).</div>
+</div>
+</div>
+
+<!-- ═══ IHS & FEES TAB ═══ -->
+<div id="tab-fees" style="display:none">
+<div class="calc-wrap">
+  <div class="calc-title">IHS (Immigration Health Surcharge) Calculator</div>
+  <div class="calc-grid">
+    <div class="field"><label>Visa route</label>
+      <select id="ih-route" onchange="calcIHS()">
+        <option value="standard">Standard (Skilled Worker, Family, GBM, etc.) — £1,035/yr</option>
+        <option value="student">Student / Youth Mobility Scheme — £776/yr</option>
+        <option value="health-care">Health & Care Worker — Exempt</option>
+        <option value="ilr">ILR / Indefinite Leave — Exempt</option>
+        <option value="visitor">Visitor (under 6 months) — Not applicable</option>
+      </select>
+    </div>
+    <div class="field"><label>Leave duration (years)</label>
+      <select id="ih-years" onchange="calcIHS()">
+        <option value="0.5">6 months</option>
+        <option value="1">1 year</option>
+        <option value="1.5">1.5 years</option>
+        <option value="2">2 years</option>
+        <option value="2.5">2.5 years</option>
+        <option value="3" selected>3 years</option>
+        <option value="3.5">3.5 years</option>
+        <option value="4">4 years</option>
+        <option value="4.5">4.5 years</option>
+        <option value="5">5 years</option>
+      </select>
+    </div>
+    <div class="field"><label>Adult dependants</label>
+      <select id="ih-adults" onchange="calcIHS()">
+        <option value="0">None</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
+      </select>
+    </div>
+    <div class="field"><label>Child dependants (under 18)</label>
+      <select id="ih-children" onchange="calcIHS()">
+        <option value="0">None</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
+      </select>
+    </div>
+  </div>
+  <div id="ih-result"></div>
+</div>
+
+<div class="calc-wrap">
+  <div class="calc-title">Visa Application Fee Calculator</div>
+  <div class="calc-grid">
+    <div class="field"><label>Visa type</label>
+      <select id="vf-type" onchange="calcVF()">
+        <option value="">— Select visa —</option>
+        <option value="sw-3">Skilled Worker — up to 3 years</option>
+        <option value="sw-5">Skilled Worker — over 3 years</option>
+        <option value="hcw-3">Health & Care Worker — up to 3 years</option>
+        <option value="hcw-5">Health & Care Worker — over 3 years</option>
+        <option value="global-talent">Global Talent</option>
+        <option value="scaleup">Scale-up Worker (any duration)</option>
+        <option value="innovator">Innovator Founder</option>
+        <option value="gbm-sr">GBM Senior/Specialist Worker</option>
+        <option value="gbm-gt">GBM Graduate Trainee</option>
+        <option value="student">Student</option>
+        <option value="graduate">Graduate route</option>
+        <option value="visit-6m">Standard Visitor — 6 months</option>
+        <option value="visit-2yr">Standard Visitor — 2 years</option>
+        <option value="visit-5yr">Standard Visitor — 5 years</option>
+        <option value="visit-10yr">Standard Visitor — 10 years</option>
+        <option value="partner-out">Partner/Spouse — outside UK</option>
+        <option value="partner-in">Partner/Spouse — inside UK (extension)</option>
+        <option value="child-out">Child — outside UK</option>
+        <option value="ilr-work">ILR (work routes)</option>
+        <option value="ilr-family">ILR (family route)</option>
+        <option value="naturalisation">Naturalisation as British citizen</option>
+        <option value="registration">Registration as British citizen</option>
+        <option value="bnо">Hong Kong BN(O)</option>
+        <option value="yms">Youth Mobility Scheme</option>
+      </select>
+    </div>
+    <div class="field"><label>Application location</label>
+      <select id="vf-location" onchange="calcVF()">
+        <option value="outside">Outside the UK (entry clearance)</option>
+        <option value="inside">Inside the UK (leave to remain)</option>
+      </select>
+    </div>
+    <div class="field"><label>Priority processing?</label>
+      <select id="vf-priority" onchange="calcVF()">
+        <option value="no">Standard processing</option>
+        <option value="priority">Priority (£500–£800 add-on)</option>
+        <option value="super">Super priority (£1,000 add-on)</option>
+      </select>
+    </div>
+    <div class="field"><label>Number of applicants</label>
+      <select id="vf-count" onchange="calcVF()">
+        <option value="1">1 (main applicant only)</option>
+        <option value="2">2 applicants</option>
+        <option value="3">3 applicants</option>
+        <option value="4">4 applicants</option>
+        <option value="5">5 applicants</option>
+      </select>
+    </div>
+  </div>
+  <div id="vf-result"></div>
+</div>
+
+<div class="calc-wrap">
+  <div class="calc-title">Employer Cost Calculator (Skilled Worker Sponsorship)</div>
+  <div class="calc-grid">
+    <div class="field"><label>Sponsor size</label>
+      <select id="emp-size" onchange="calcEmployer()">
+        <option value="large">Medium / Large organisation</option>
+        <option value="small">Small organisation / charity</option>
+      </select>
+    </div>
+    <div class="field"><label>Visa duration (years)</label>
+      <select id="emp-years" onchange="calcEmployer()">
+        <option value="1">1 year</option><option value="2">2 years</option><option value="3" selected>3 years</option><option value="4">4 years</option><option value="5">5 years</option>
+      </select>
+    </div>
+  </div>
+  <div id="emp-result"></div>
+  <div class="fee-note">Immigration Skills Charge: Large = £1,320 first year + £660 per additional 6 months. Small/charity = £480 + £240 per additional 6 months. Certificate of Sponsorship: £525. Sponsor licence (first time): Large = £1,682, Small = £611. All figures as at 8 April 2026.</div>
+</div>
+</div>
+
+<!-- ═══ RESULTS TAB ═══ -->
+<div id="tab-results" style="display:none">
+  <div id="results-content">
+    <div class="empty"><h3>No assessment yet</h3><p>Complete the Client Profiler and click Run Route Assessment.</p></div>
+  </div>
+</div>
+
+</div><!-- end main panel -->
+
+<!-- ═══ AI SIDEBAR ═══ -->
+<div class="ai-sidebar" id="ai-panel">
+  <div class="ai-hdr">
+    <div class="ai-hdr-title">AI Immigration Adviser</div>
+    <div class="ai-hdr-sub">Specialist answers — HC 1691 current</div>
+  </div>
+  <div class="ai-msgs" id="ai-msgs">
+    <div class="ai-msg-ai"><div class="bubble">I'm your immigration law adviser. I can assess client eligibility, explain route requirements, flag adverse history issues, and advise on fee planning. Enter client details and run an assessment, or ask me anything directly.</div></div>
+  </div>
+  <div class="ai-input-area">
+    <div class="ai-quick" id="ai-quick">
+      <button class="ai-qbtn" data-q="What is the Visa Brake and who does it affect?">Visa Brake</button>
+      <button class="ai-qbtn" data-q="What are the current Skilled Worker salary thresholds?">SW salary</button>
+      <button class="ai-qbtn" data-q="How does the new pay period compliance rule work from 8 April 2026?">Pay period rule</button>
+      <button class="ai-qbtn" data-q="What is the MIR for the partner route and how can savings top it up?">Partner MIR</button>
+      <button class="ai-qbtn" data-q="What is the new 30-month refugee leave rule?">30-month leave</button>
+    </div>
+    <div class="ai-row">
+      <textarea class="ai-input" id="ai-input" rows="2" placeholder="Ask anything..."></textarea>
+      <button class="ai-send" id="ai-send">↑</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ─── DATA ──────────────────────────────────────────────────────────────────
+const VISA_BRAKE_NATIONS = ['afghan','cameroonian','myanmar','sudanese'];
+const VISA_BRAKE_SW = ['afghan'];
+const EU_NATIONS = ['french','german','greek','hungarian','italian','polish','portuguese','romanian','spanish','croatian','bulgarian','swedish','norwegian','other-eu'];
+const COMMONWEALTH = ['australian','canadian','new-zealand','south-african','jamaican','ghanaian','kenyan','nigerian','indian','bangladeshi','sri-lankan','pakistani','nepalese','other-commonwealth'];
+const MAJORITY_ENGLISH = ['american','australian','canadian','new-zealand','irish','british'];
+const VISA_NATIONAL = ['afghan','algerian','bangladeshi','cameroonian','chinese','colombian','egyptian','eritrean','ethiopian','ghanaian','hong-kong','iranian','iraqi','kenyan','libyan','moroccan','myanmar','nepalese','nigerian','pakistani','philippine','russian','saudi','somali','sri-lankan','sudanese','syrian','turkish','ugandan','zimbabwean'];
+
+const NAT_LINKS = {
+  'afghan': [{label:'Check visa requirements',url:'https://www.gov.uk/check-uk-visa'},{label:'Afghan nationals — Home Office',url:'https://www.gov.uk/government/collections/afghans-in-the-uk'}],
+  'indian': [{label:'Check visa requirements',url:'https://www.gov.uk/check-uk-visa'},{label:'India-UK trade visa info',url:'https://www.gov.uk/guidance/uk-india-young-professionals-scheme-information-for-applicants'}],
+  'bn-o': [{label:'BN(O) visa — apply',url:'https://www.gov.uk/british-national-overseas-bno-visa'},{label:'Hong Kong BN(O) guidance',url:'https://www.gov.uk/guidance/hong-kong-british-national-overseas-visa'}],
+  'ukrainian': [{label:'Ukraine Permission Extension Scheme',url:'https://www.gov.uk/guidance/ukraine-permission-extension-scheme'},{label:'Ukraine visa schemes',url:'https://www.gov.uk/guidance/ukrainian-nationals-in-the-uk-visa-options'}],
+  'default': [{label:'Check visa requirements — GOV.UK',url:'https://www.gov.uk/check-uk-visa'},{label:'UKVI — Apply online',url:'https://www.gov.uk/apply-to-come-to-the-uk'},{label:'Immigration Rules — GOV.UK',url:'https://www.gov.uk/guidance/immigration-rules'}]
+};
+
+const CLEARANCE_LINKS = [
+  {label:'ATAS — Academic Technology Approval Scheme',url:'https://www.gov.uk/guidance/academic-technology-approval-scheme',desc:'Required for certain postgraduate science/engineering courses'},
+  {label:'Right to work check service',url:'https://www.gov.uk/prove-right-to-work',desc:'Share code for employers'},
+  {label:'eVisa — view & share immigration status',url:'https://www.gov.uk/view-prove-immigration-status',desc:'UKVI account for digital status'},
+  {label:'ETA — Electronic Travel Authorisation',url:'https://www.gov.uk/guidance/apply-for-an-electronic-travel-authorisation-eta',desc:'Required for eligible non-visa nationals'},
+  {label:'TB test — find approved clinics',url:'https://www.gov.uk/tb-test-visa',desc:'Required for nationals of certain countries'},
+  {label:'Life in the UK Test',url:'https://www.gov.uk/life-in-the-uk-test',desc:'Required for ILR and naturalisation'},
+  {label:'English language test providers (SELTs)',url:'https://www.gov.uk/guidance/prove-your-english-language-abilities-with-a-secure-english-language-test-selt',desc:'UKVI-approved providers'},
+  {label:'Immigration health surcharge — pay',url:'https://www.gov.uk/healthcare-immigration-application',desc:'Mandatory for most temporary routes'},
+  {label:'IHS refund — claim back',url:'https://www.gov.uk/government/publications/immigration-health-surcharge-apply-for-a-refund',desc:'Where leave was shorter than paid for'},
+  {label:'UKVCAS — book biometrics appointment',url:'https://www.ukvcas.co.uk',desc:'UK Visas and Citizenship Application Services'},
+  {label:'Visa application centres overseas — find',url:'https://www.gov.uk/find-a-visa-application-centre',desc:'VFS Global and TLScontact centres worldwide'},
+  {label:'Priority and super priority visa services',url:'https://www.gov.uk/priority-visa',desc:'Faster processing for additional fee'}
+];
+
+const VF = {
+  'sw-3':      {out:819,  in:819},
+  'sw-5':      {out:1618, in:1618},
+  'hcw-3':     {out:284,  in:284},
+  'hcw-5':     {out:551,  in:551},
+  'global-talent':{out:716,in:716},
+  'scaleup':   {out:819,  in:819},
+  'innovator': {out:1486, in:1486},
+  'gbm-sr':    {out:819,  in:819},
+  'gbm-gt':    {out:259,  in:259},
+  'student':   {out:490,  in:490},
+  'graduate':  {out:715,  in:715},
+  'visit-6m':  {out:135,  in:0},
+  'visit-2yr': {out:432,  in:0},
+  'visit-5yr': {out:771,  in:0},
+  'visit-10yr':{out:963,  in:0},
+  'partner-out':{out:2064,in:1407},
+  'partner-in':{out:2064, in:1407},
+  'child-out': {out:2064, in:1407},
+  'ilr-work':  {out:3226, in:3226},
+  'ilr-family':{out:3226, in:3226},
+  'naturalisation':{out:1709,in:1709},
+  'registration':{out:1540,in:1540},
+  'bnо':       {out:180,  in:180},
+  'yms':       {out:298,  in:298}
+};
+const VF_IHS_EXEMPT = ['visit-6m','visit-2yr','visit-5yr','visit-10yr','ilr-work','ilr-family','naturalisation','registration','bnо','hcw-3','hcw-5'];
+const VF_STUDENT = ['student','graduate','yms'];
+const VF_LABELS = {
+  'sw-3':'Skilled Worker (up to 3yr)','sw-5':'Skilled Worker (over 3yr)','hcw-3':'Health & Care Worker (up to 3yr)',
+  'hcw-5':'Health & Care Worker (over 3yr)','global-talent':'Global Talent','scaleup':'Scale-up Worker',
+  'innovator':'Innovator Founder','gbm-sr':'GBM Senior/Specialist','gbm-gt':'GBM Graduate Trainee',
+  'student':'Student','graduate':'Graduate route','visit-6m':'Visitor 6 months','visit-2yr':'Visitor 2 years',
+  'visit-5yr':'Visitor 5 years','visit-10yr':'Visitor 10 years','partner-out':'Partner/Spouse (outside UK)',
+  'partner-in':'Partner/Spouse (extension)','child-out':'Child visa','ilr-work':'ILR — work routes',
+  'ilr-family':'ILR — family route','naturalisation':'Naturalisation','registration':'Registration (citizenship)',
+  'bnо':'Hong Kong BN(O)','yms':'Youth Mobility Scheme'
+};
+
+// ─── TABS ──────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const id = tab.dataset.tab;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    ['profiler','salary','fees','results'].forEach(t => {
+      const el = document.getElementById('tab-'+t);
+      if (el) el.style.display = t === id ? 'block' : 'none';
+    });
+  });
+});
+
+// ─── SALARY CALC ──────────────────────────────────────────────────────────
+function calcSalary() {
+  const sal = parseFloat(document.getElementById('s-salary').value) || 0;
+  const type = document.getElementById('s-type').value;
+  const going = parseFloat(document.getElementById('s-going').value) || 0;
+  const isl = document.getElementById('s-isl').value === 'yes';
+  if (!sal) { document.getElementById('s-result').style.display='none'; document.getElementById('s-bar').style.display='none'; return; }
+
+  const general = 38700;
+  const newEntrant = 30960;
+  const isNewEntrant = type === 'new-entrant' || type === 'phd';
+  const isHCW = type === 'health-care';
+
+  let thresholds = [];
+  if (isHCW) {
+    thresholds = [{name:'Health & Care going rate', val: going || 'Going rate required', exact: going}];
+  } else if (isNewEntrant) {
+    const islAdj = going && isl ? going * 0.8 : (going || 0);
+    thresholds = [
+      {name:'General threshold', val:general},
+      {name:'New entrant rate (80%)', val:newEntrant}
+    ];
+    if (going) thresholds.push({name:'Going rate'+(isl?' (ISL -20%)':''), val: isl ? going*0.8 : going});
+    const required = Math.max(newEntrant, islAdj || 0);
+    thresholds.push({name:'Effective minimum', val:required, highlight:true});
+  } else {
+    const islAdj = going && isl ? going * 0.8 : (going || 0);
+    const required = Math.max(general, islAdj || 0);
+    thresholds = [
+      {name:'General threshold', val:general},
+      {name:'New entrant rate', val:newEntrant},
+    ];
+    if (going) thresholds.push({name:'Going rate'+(isl?' (ISL -20%)':''), val: isl ? going*0.8 : going});
+    thresholds.push({name:'Effective minimum', val:required, highlight:true});
+  }
+
+  const effectiveMin = thresholds.find(t=>t.highlight)?.val || thresholds[0]?.val || general;
+  const pct = effectiveMin > 0 ? Math.min(Math.round((sal/effectiveMin)*100),200) : 100;
+  const pass = sal >= effectiveMin;
+
+  document.getElementById('s-result').style.display = 'block';
+  document.getElementById('s-verdict').innerHTML = `
+    <div class="calc-result-label">${pass ? '✅ Salary meets threshold' : '❌ Below threshold'}</div>
+    <div class="calc-result-val">£${sal.toLocaleString()} p.a.</div>
+    <div class="calc-result-sub">Effective minimum: £${effectiveMin.toLocaleString()} — ${pass ? 'Compliant by £'+(sal-effectiveMin).toLocaleString() : 'Shortfall of £'+(effectiveMin-sal).toLocaleString()}</div>`;
+  document.getElementById('s-result').style.background = pass ? 'var(--green-bg)' : 'var(--red-bg)';
+  document.getElementById('s-result').style.borderColor = pass ? '#A7F3D0' : '#FECACA';
+  document.getElementById('s-result').style.color = pass ? '#065F46' : '#991B1B';
+
+  document.getElementById('s-bar').style.display = 'block';
+  const fill = document.getElementById('s-bar-fill');
+  fill.style.width = Math.min(pct,100)+'%';
+  fill.style.background = pass ? 'var(--green)' : 'var(--red)';
+  document.getElementById('s-pct').textContent = pct+'% of threshold';
+  document.getElementById('s-thresholds').innerHTML = thresholds.map(t => {
+    const v = typeof t.val === 'number' ? '£'+t.val.toLocaleString() : t.val;
+    const ok = typeof t.val === 'number' ? sal >= t.val : null;
+    return `<div class="threshold-row">
+      <div class="th-dot" style="background:${t.highlight ? (pass?'var(--green)':'var(--red)') : 'var(--border)'}"></div>
+      <div class="th-name">${t.name}${t.highlight?' ← required':''}</div>
+      <div class="th-val">${v}</div>
+      ${ok!==null ? `<div class="th-status">${ok?'✅':'❌'}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ─── IHS CALC ─────────────────────────────────────────────────────────────
+function calcIHS() {
+  const route = document.getElementById('ih-route').value;
+  const years = parseFloat(document.getElementById('ih-years').value);
+  const adults = parseInt(document.getElementById('ih-adults').value);
+  const children = parseInt(document.getElementById('ih-children').value);
+
+  if (route === 'health-care' || route === 'ilr' || route === 'visitor') {
+    document.getElementById('ih-result').innerHTML = `<div class="calc-result" style="background:var(--green-bg);border-color:#A7F3D0">
+      <div class="calc-result-label">IHS Status</div>
+      <div class="calc-result-val" style="color:var(--green)">Exempt</div>
+      <div class="calc-result-sub" style="color:#065F46">${route==='health-care'?'Health & Care Worker visa holders and dependants are exempt':route==='ilr'?'ILR/settlement applications do not attract IHS':'Visitor visas under 6 months are not subject to IHS'}</div></div>`;
+    return;
+  }
+
+  const rate = route === 'student' ? 776 : 1035;
+  const childRate = route === 'student' ? 776 : 776; // children always reduced
+  const roundedYears = Math.ceil(years);
+
+  const mainIHS = rate * roundedYears;
+  const adultDepIHS = adults * rate * roundedYears;
+  const childDepIHS = children * childRate * roundedYears;
+  const totalIHS = mainIHS + adultDepIHS + childDepIHS;
+
+  document.getElementById('ih-result').innerHTML = `
+    <table class="fee-table">
+      <thead><tr><th>Applicant</th><th>Rate</th><th>Years</th><th>IHS</th></tr></thead>
+      <tbody>
+        <tr><td>Main applicant</td><td>£${rate}/yr</td><td>${roundedYears}</td><td>£${mainIHS.toLocaleString()}</td></tr>
+        ${adults > 0 ? `<tr><td>Adult dependants (${adults})</td><td>£${rate}/yr each</td><td>${roundedYears}</td><td>£${adultDepIHS.toLocaleString()}</td></tr>` : ''}
+        ${children > 0 ? `<tr><td>Child dependants (${children})</td><td>£${childRate}/yr each</td><td>${roundedYears}</td><td>£${childDepIHS.toLocaleString()}</td></tr>` : ''}
+        <tr class="fee-total-row"><td colspan="3">Total IHS (all applicants)</td><td>£${totalIHS.toLocaleString()}</td></tr>
+      </tbody>
+    </table>
+    <div class="fee-note">IHS paid upfront in full at application. Standard rate: £1,035/yr. Reduced rate: £776/yr (students, YMS, children under 18). Part-years over 6 months charged as a full year. Rates in effect from 6 February 2024.</div>`;
+}
+
+// ─── VISA FEE CALC ────────────────────────────────────────────────────────
+function calcVF() {
+  const type = document.getElementById('vf-type').value;
+  const loc = document.getElementById('vf-location').value;
+  const priority = document.getElementById('vf-priority').value;
+  const count = parseInt(document.getElementById('vf-count').value);
+  if (!type) { document.getElementById('vf-result').innerHTML = ''; return; }
+
+  const fees = VF[type];
+  if (!fees) return;
+  const baseFee = loc === 'outside' ? fees.out : fees.in;
+  const ihsExempt = VF_IHS_EXEMPT.includes(type);
+  const isStudent = VF_STUDENT.includes(type);
+  const ihsRate = isStudent ? 776 : 1035;
+
+  let priorityFee = 0;
+  if (priority === 'priority') priorityFee = 500;
+  if (priority === 'super') priorityFee = 1000;
+
+  const totalBase = baseFee * count;
+  const totalPriority = priorityFee * count;
+
+  // IHS duration estimation
+  const ihsDurations = {'sw-3':3,'sw-5':5,'hcw-3':3,'hcw-5':5,'global-talent':5,'scaleup':5,'innovator':3,
+    'gbm-sr':3,'gbm-gt':2,'student':3,'graduate':2,'partner-out':3,'partner-in':3,'child-out':3,'bnо':3,'yms':2};
+  const ihsYrs = ihsDurations[type] || 3;
+  const ihsTotal = ihsExempt ? 0 : ihsRate * ihsYrs * count;
+
+  document.getElementById('vf-result').innerHTML = `
+    <table class="fee-table">
+      <thead><tr><th>Cost item</th><th>Per person</th><th>× ${count}</th><th>Total</th></tr></thead>
+      <tbody>
+        <tr><td>Visa application fee — ${VF_LABELS[type]||type}</td><td>£${baseFee.toLocaleString()}</td><td>${count}</td><td>£${totalBase.toLocaleString()}</td></tr>
+        ${!ihsExempt ? `<tr><td>IHS (est. ${ihsYrs} yrs × £${ihsRate}/yr)</td><td>£${(ihsRate*ihsYrs).toLocaleString()}</td><td>${count}</td><td>£${ihsTotal.toLocaleString()}</td></tr>` : '<tr><td>IHS</td><td colspan="2">Exempt for this route</td><td>—</td></tr>'}
+        ${priorityFee ? `<tr><td>${priority==='super'?'Super p':'P'}riority processing</td><td>£${priorityFee}</td><td>${count}</td><td>£${totalPriority.toLocaleString()}</td></tr>` : ''}
+        <tr class="fee-total-row"><td colspan="3">Estimated total (excl. ancillary costs)</td><td>£${(totalBase+ihsTotal+totalPriority).toLocaleString()}</td></tr>
+      </tbody>
+    </table>
+    <div class="fee-note">Fees as at 8 April 2026. IHS duration estimated — adjust for actual leave period. Excludes: biometrics (£19.20 where applicable), TB test (£65–110), English language test (£150–200), legal fees, translation, courier costs. Priority/super priority not available for all routes. Visitor visas do not attract IHS.</div>`;
+}
+
+// ─── EMPLOYER COST CALC ───────────────────────────────────────────────────
+function calcEmployer() {
+  const size = document.getElementById('emp-size').value;
+  const years = parseInt(document.getElementById('emp-years').value);
+  const isSmall = size === 'small';
+
+  const licenceFee = isSmall ? 611 : 1682;
+  const cos = 525;
+  const iscY1 = isSmall ? 480 : 1320;
+  const iscHalf = isSmall ? 240 : 660;
+  const halfYears = years * 2;
+  const totalISC = halfYears <= 2 ? iscY1 : iscY1 + iscHalf * (halfYears - 2);
+  const appFee = years <= 3 ? 819 : 1618;
+  const ihsMain = 1035 * years;
+  const total = licenceFee + cos + totalISC + appFee + ihsMain;
+
+  document.getElementById('emp-result').innerHTML = `
+    <table class="fee-table">
+      <thead><tr><th>Cost item</th><th>Amount</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Sponsor licence (new)</td><td>£${licenceFee.toLocaleString()}</td><td>${isSmall?'Small/charity':'Medium/large'} organisation. One-off.</td></tr>
+        <tr><td>Certificate of Sponsorship (CoS)</td><td>£525</td><td>Per worker. New as at Dec 2025.</td></tr>
+        <tr><td>Immigration Skills Charge (ISC)</td><td>£${totalISC.toLocaleString()}</td><td>${years} years. ${isSmall?'Small':'Large'} rate.</td></tr>
+        <tr><td>Visa application fee</td><td>£${appFee.toLocaleString()}</td><td>${years<=3?'Up to 3 years':'Over 3 years'} rate (worker-facing, often reimbursed)</td></tr>
+        <tr><td>IHS — main applicant</td><td>£${ihsMain.toLocaleString()}</td><td>${years} years × £1,035. Worker-facing, often reimbursed by employer</td></tr>
+        <tr class="fee-total-row"><td colspan="2">Total estimated cost (1 worker, ${years} years)</td><td>£${total.toLocaleString()}</td></tr>
+      </tbody>
+    </table>`;
+}
+
+// ─── ASSESS ───────────────────────────────────────────────────────────────
+function collectProfile() {
+  return {
+    name: document.getElementById('f-name').value.trim(),
+    dob: document.getElementById('f-dob').value,
+    nat: document.getElementById('f-nat').value,
+    passport: document.getElementById('f-passport').value,
+    location: document.getElementById('f-location').value,
+    status: document.getElementById('f-status').value,
+    history: document.getElementById('f-history').value.trim(),
+    criminal: document.getElementById('f-criminal').value.trim(),
+    employment: document.getElementById('f-employment').value.trim(),
+    salary: parseFloat(document.getElementById('f-salary').value) || 0,
+    sponsor: document.getElementById('f-sponsor').value,
+    qual: document.getElementById('f-qual').value,
+    english: document.getElementById('f-english').value,
+    field: document.getElementById('f-field').value,
+    relationship: document.getElementById('f-relationship').value,
+    deps: document.getElementById('f-deps').value,
+    sponsorIncome: parseFloat(document.getElementById('f-sponsor-income').value) || 0,
+    savings: parseFloat(document.getElementById('f-savings').value) || 0,
+    objective: document.getElementById('f-objective').value.trim(),
+    longterm: document.getElementById('f-longterm').value
+  };
+}
+
+function badgeStatus(ok) { return ok ? 'badge-ok' : 'badge-no'; }
+
+function buildRoutes(p) {
+  const routes = [];
+  const hasSponsorship = p.sponsor === 'yes-licensed';
+  const isB1plus = ['native','b2-plus','b1'].includes(p.english);
+  const isB2plus = ['native','b2-plus'].includes(p.english);
+  const visaBrake = VISA_BRAKE_NATIONS.includes(p.nat);
+  const swBrake = VISA_BRAKE_SW.includes(p.nat);
+  const isEU = EU_NATIONS.includes(p.nat);
+  const isCommonwealth = COMMONWEALTH.includes(p.nat);
+  const adverse = (p.history.toLowerCase().includes('refus') || p.history.toLowerCase().includes('overstay') || p.history.toLowerCase().includes('deport')) ? 'history' : null;
+  const criminality = p.criminal && !p.criminal.toLowerCase().includes('no') && p.criminal.trim().length > 2 ? 'criminal' : null;
+  const hasRelationship = !!p.relationship;
+  const hasBritishPartner = ['married-bc','unmarried-partner'].includes(p.relationship);
+  const hasBritishChild = p.relationship === 'parent-british-child';
+  const isChildOf = p.relationship === 'child-of-bc';
+  const inUK = p.location === 'in-uk';
+
+  // Skilled Worker
+  if (p.longterm === 'work' || p.longterm === 'settlement' || !p.longterm) {
+    const salaryOk = p.salary >= 30960 || !p.salary;
+    const salaryGeneral = p.salary >= 38700;
+    const qualOk = ['degree','masters','phd'].includes(p.qual);
+    let score = 0;
+    if (hasSponsorship) score += 40;
+    if (salaryOk) score += 20;
+    if (isB1plus) score += 20;
+    if (qualOk) score += 10;
+    if (!swBrake) score += 10;
+    if (swBrake) score = Math.max(score - 60, 5);
+    routes.push({
+      id:'skilled-worker', name:'Skilled Worker', tagline:'Employment with a licensed UK sponsor',
+      rank: score, score,
+      badges: [
+        {label: hasSponsorship ? '✓ Sponsor' : '✗ No sponsor', cls: badgeStatus(hasSponsorship)},
+        {label: swBrake ? '⚠ Visa Brake' : (salaryOk ? '✓ Salary' : '✗ Salary'), cls: swBrake ? 'badge-warn' : badgeStatus(salaryOk)},
+        {label: isB1plus ? '✓ English B1+' : '⚠ English', cls: badgeStatus(isB1plus)}
+      ],
+      reqs:[
+        {label:'Eligibility',val: swBrake ? '⚠ VISA BRAKE IN FORCE — Afghan nationals refused entry clearance (26 Mar 2026)' : (qualOk ? '✓ Qualification level appears met' : 'Degree-level or above preferred'), cls: swBrake ? 'warn' : (qualOk?'ok':'warn')},
+        {label:'Sponsorship',val: hasSponsorship ? '✓ Licensed sponsor confirmed' : (p.sponsor==='yes-not-licensed'?'⚠ Employer must obtain licence':'✗ No sponsor — required'), cls: badgeStatus(hasSponsorship)===badgeStatus(true)?'ok':'warn'},
+        {label:'Min. salary',val: p.salary ? (salaryGeneral ? `✓ £${p.salary.toLocaleString()} meets general threshold` : (salaryOk?`✓ £${p.salary.toLocaleString()} meets new entrant rate`:`✗ £${p.salary.toLocaleString()} — below threshold`)) : '£38,700 general / £30,960 new entrant', cls: p.salary?(salaryGeneral?'ok':(salaryOk?'ok':'no')):''},
+        {label:'English',val: isB1plus ? '✓ B1+ sufficient for entry/extension':'⚠ B1 minimum required — B2 needed for settlement from Mar 2027', cls: isB1plus?'ok':'warn'},
+        {label:'Settlement path',val:'5 years → ILR. 10-year extension proposed (not yet in force)', cls:''},
+        {label:'IHS',val:'£1,035/yr. Health & Care Workers exempt.', cls:''},
+        {label:'Visa fee',val: inUK ? '£819 (up to 3yr) / £1,618 (over 3yr) — in-country' : '£819 (up to 3yr) / £1,618 (over 3yr) — entry clearance', cls:''}
+      ],
+      links:[
+        {label:'Apply — Skilled Worker',url:'https://www.gov.uk/skilled-worker-visa'},
+        {label:'Appendix Skilled Worker',url:'https://www.gov.uk/guidance/immigration-rules/immigration-rules-appendix-skilled-worker'},
+        {label:'Appendix Skilled Occupations',url:'https://www.gov.uk/guidance/immigration-rules/immigration-rules-appendix-skilled-occupations'},
+        {label:'Sponsor licence — apply',url:'https://www.gov.uk/uk-visa-sponsorship-employers'},
+        {label:'Check salary thresholds',url:'https://www.gov.uk/skilled-worker-visa/your-job'}
+      ]
+    });
+  }
+
+  // Family Route
+  if (hasBritishPartner || hasBritishChild || isChildOf || p.longterm === 'family' || p.relationship) {
+    const incomeOk = p.sponsorIncome >= 29000;
+    const savingsTopup = p.savings > 16000 && p.sponsorIncome > 0 && p.sponsorIncome < 29000;
+    let score = 0;
+    if (hasBritishPartner) score += 50;
+    if (hasBritishChild) score += 45;
+    if (isChildOf) score += 45;
+    if (incomeOk) score += 20;
+    if (isB1plus) score += 10;
+    if (savingsTopup) score += 10;
+    if (adverse) score -= 10;
+    routes.push({
+      id:'family', name:'Family Route (Appendix FM)', tagline:'Partner, parent, or child of British citizen / settled person',
+      rank: score, score,
+      badges:[
+        {label: hasBritishPartner ? '✓ BC partner' : (hasBritishChild?'✓ BC child':(isChildOf?'✓ Child of BC':'⚠ Relationship type')), cls:'badge-info'},
+        {label: incomeOk ? '✓ MIR met' : (savingsTopup?'⚠ Savings top-up':'✗ MIR check'), cls: incomeOk?'badge-ok':(savingsTopup?'badge-warn':'badge-no')},
+        {label: isB1plus?'✓ English':'⚠ English A1 min', cls: badgeStatus(isB1plus)}
+      ],
+      reqs:[
+        {label:'Eligibility',val:'Sponsor must be British citizen or settled person. Genuine subsisting relationship required.', cls:''},
+        {label:'Min. income (MIR)',val: p.sponsorIncome ? (incomeOk?`✓ £${p.sponsorIncome.toLocaleString()} meets £29,000 MIR`:`⚠ £${p.sponsorIncome.toLocaleString()} — below £29,000. ${savingsTopup?'Savings may top up shortfall.':''}`) : '£29,000 p.a. sponsor income required. Savings £16,000+ can top up shortfall.', cls: p.sponsorIncome?(incomeOk?'ok':'warn'):''},
+        {label:'English',val:'A1 CEFR on entry. A2 on extension. B1 for ILR.', cls: isB1plus?'ok':'warn'},
+        {label:'Accommodation',val:'Adequate accommodation without overcrowding required', cls:''},
+        {label:'Settlement path',val:'5-year route: 33-month FLR(M) + 30-month FLR(M) + ILR', cls:''},
+        {label:'Visa fee',val: inUK ? '£1,407 in-country extension' : '£2,064 outside UK (entry clearance)', cls:''},
+        {label:'IHS',val:'£1,035/yr × 3 years = £3,105 per person (5-yr total ~£5,175)', cls:''}
+      ],
+      links:[
+        {label:'Apply — Family visa',url:'https://www.gov.uk/uk-family-visa'},
+        {label:'Appendix FM',url:'https://www.gov.uk/guidance/immigration-rules/immigration-rules-appendix-fm-family-members'},
+        {label:'Appendix FM-SE (Evidence)',url:'https://www.gov.uk/guidance/immigration-rules/immigration-rules-appendix-fm-se-family-members-specified-evidence'},
+        {label:'Financial requirement guidance',url:'https://www.gov.uk/guidance/family-migration-appendix-fm-section-fm-1-1b-financial-requirement'},
+        {label:'English language requirements',url:'https://www.gov.uk/guidance/immigration-rules/immigration-rules-appendix-english-language'}
+      ]
+    });
+  }
+
+  // Global Talent
+  if (p.field === 'tech' || p.field === 'arts' || p.field === 'education' || p.longterm === 'talent') {
+    let score = 0;
+    if (['degree','masters','phd'].includes(p.qual)) score += 30;
+    if (p.field === 'tech' || p.field === 'arts' || p.field === 'education') score += 40;
+    if (!p.sponsor || p.sponsor === 'no' || p.sponsor === 'self') score += 20;
+    routes.push({
+      id:'global-talent', name:'Global Talent', tagline:'Exceptional ability in tech, arts, academia or design',
+      rank: score, score,
+      badges:[
+        {label:'No sponsor needed', cls:'badge-ok'},
+        {label:'Endorsement required', cls:'badge-info'},
+        {label: p.field==='tech'?'Tech eligible':(p.field==='arts'?'Arts eligible':(p.field==='education'?'Academia eligible':'Check endorsing body')), cls:'badge-info'}
+      ],
+      reqs:[
+        {label:'Eligibility',val:'Must demonstrate exceptional talent (already leader) or exceptional promise (emerging leader). No job offer needed.', cls:''},
+        {label:'Endorsement',val:'UKRI (academia/research), Arts Council England (arts/culture), endorsing body for digital tech, Design Council (from 1 Jul 2026).', cls:''},
+        {label:'Salary',val:'No minimum salary requirement. Work for multiple employers / self-employment permitted.', cls:'ok'},
+        {label:'Settlement',val:'3 years (Exceptional Talent) or 5 years (Exceptional Promise).', cls:''},
+        {label:'New: Design pathway',val:'Design professionals — new endorsement via Design Council from 1 July 2026.', cls:'ok'},
+        {label:'Visa fee',val:'£716 (entry clearance or in-country)', cls:''},
+        {label:'IHS',val:'£1,035/yr standard rate. No exemption.', cls:''}
+      ],
+      links:[
+        {label:'Apply — Global Talent',url:'https://www.gov.uk/global-talent'},
+        {label:'Appendix Global Talent',url:'https://www.gov.uk/guidance/immigration-rules/immigration-rules-appendix-global-talent'},
+        {label:'UKRI endorsement',url:'https://www.ukri.org/apply-for-funding/visas-for-researchers/global-talent-visa/'},
+        {label:'Arts Council endorsement',url:'https://www.artscouncil.org.uk/global-talent-visa'},
+        {label:'Tech endorsement',url:'https://technation.io/visa/'}
+      ]
+    });
+  }
+
+  // Student
+  if (p.longterm === 'study' || p.status === 'student' || (p.qual === 'below-degree')) {
+    const studBrake = visaBrake && p.location === 'outside-uk';
+    let score = 0;
+    if (!studBrake) score += 40;
+    if (p.qual !== 'below-degree') score += 20;
+    if (isB2plus) score += 20;
+    if (studBrake) score = Math.max(score - 60, 5);
+    routes.push({
+      id:'student', name:'Student Route', tagline:'Study at a licensed UK higher education institution',
+      rank: score, score,
+      badges:[
+        {label: studBrake ? '⚠ Visa Brake' : '✓ Available', cls: studBrake?'badge-no':'badge-ok'},
+        {label:'CAS required', cls:'badge-info'},
+        {label: isB2plus ? '✓ English B2' : '⚠ B2 required', cls: badgeStatus(isB2plus)}
+      ],
+      reqs:[
+        {label:'Visa Brake',val: studBrake ? `⚠ Student visa entry clearance REFUSED for ${p.nat} nationals (26 Mar 2026). In-country applications not affected.` : 'Not subject to Visa Brake', cls: studBrake?'warn':'ok'},
+        {label:'CAS',val:'Unconditional Confirmation of Acceptance for Studies from a licensed sponsor required', cls:''},
+        {label:'English',val:'B2 CEFR for degree-level study. B1 for pre-sessional/foundation.', cls: isB2plus?'ok':'warn'},
+        {label:'Maintenance',val:'£1,334/month London / £1,023/month elsewhere (9 months max needed)', cls:''},
+        {label:'Work rights',val:'20 hrs/week term-time. Full-time vacations. No self-employment.', cls:''},
+        {label:'Graduate route',val:'2 years post-study work after graduation (3 years PhD)', cls:'ok'},
+        {label:'Visa fee',val:'£490. IHS: £776/yr (reduced rate).', cls:''}
+      ],
+      links:[
+        {label:'Apply — Student visa',url:'https://www.gov.uk/student-visa'},
+        {label:'Appendix Student',url:'https://www.gov.uk/guidance/immigration-rules/immigration-rules-appendix-student'},
+        {label:'Graduate route',url:'https://www.gov.uk/graduate-visa'},
+        {label:'Find CAS provider',url:'https://www.gov.uk/government/publications/register-of-licensed-sponsors-students'},
+        {label:'ATAS clearance',url:'https://www.gov.uk/guidance/academic-technology-approval-scheme'}
+      ]
+    });
+  }
+
+  // EUSS
+  if (isEU || p.status === 'euss-pre' || p.status === 'euss-settled') {
+    routes.push({
+      id:'euss', name:'EU Settlement Scheme', tagline:'Pre-settled or settled status for EU/EEA/Swiss nationals',
+      rank: isEU ? 70 : 40, score: isEU ? 70 : 40,
+      badges:[
+        {label:'EEA/Swiss national', cls: isEU?'badge-ok':'badge-info'},
+        {label:'Deadline passed', cls:'badge-warn'},
+        {label:'Late apps accepted', cls:'badge-info'}
+      ],
+      reqs:[
+        {label:'Eligibility',val:'EU, EEA, or Swiss national (or family member) resident in UK before 31 December 2020.', cls:''},
+        {label:'Deadline',val:'30 June 2021 (passed). Late applications accepted with reasonable grounds for delay — no final deadline.', cls:'warn'},
+        {label:'Settled Status',val:'5+ years qualifying residence → ILR equivalent', cls:'ok'},
+        {label:'Pre-Settled Status',val:'Under 5 years → 5-year limited leave. Must upgrade to Settled Status before expiry.', cls:''},
+        {label:'Fee',val:'Free — no application fee or IHS for EUSS applications', cls:'ok'},
+        {label:'Appendix EU changes',val:'Technical amendments under HC 1691 in force 29 April 2026', cls:''}
+      ],
+      links:[
+        {label:'Apply — EU Settlement Scheme',url:'https://www.gov.uk/settled-status-eu-citizens-families'},
+        {label:'Appendix EU',url:'https://www.gov.uk/guidance/immigration-rules/immigration-rules-appendix-eu'},
+        {label:'Check EUSS status',url:'https://www.gov.uk/view-prove-immigration-status'},
+        {label:'EUSS guidance for families',url:'https://www.gov.uk/guidance/eu-settlement-scheme-family-members-of-eu-citizens'}
+      ]
+    });
+  }
+
+  // BN(O)
+  if (p.nat === 'bn-o') {
+    routes.push({
+      id:'bno', name:'Hong Kong BN(O) Route', tagline:'For Hong Kong British National (Overseas) passport holders',
+      rank: 90, score: 90,
+      badges:[{label:'BN(O) eligible', cls:'badge-ok'},{label:'5yr → ILR', cls:'badge-info'}],
+      reqs:[
+        {label:'Eligibility',val:'Must hold a BN(O) passport. Family members may apply as dependants.', cls:'ok'},
+        {label:'Settlement path',val:'5 years → ILR → naturalisation after 1 year with ILR', cls:'ok'},
+        {label:'Work rights',val:'Full work rights. Self-employment permitted.', cls:'ok'},
+        {label:'Fee waiver',val:'Fee waiver available for those unable to afford costs (family/HR routes)', cls:'ok'}
+      ],
+      links:[
+        {label:'Apply — BN(O) visa',url:'https://www.gov.uk/british-national-overseas-bno-visa'},
+        {label:'BN(O) guidance',url:'https://www.gov.uk/guidance/hong-kong-british-national-overseas-visa'},
+        {label:'Appendix HK BN(O)',url:'https://www.gov.uk/guidance/immigration-rules/immigration-rules-appendix-hong-kong-british-national-overseas-visa'}
+      ]
+    });
+  }
+
+  // Sort and return top 3
+  routes.sort((a, b) => b.score - a.score);
+  return routes.slice(0, 3);
+}
+
+function getAdverseFlags(p) {
+  const flags = [];
+  const h = p.history.toLowerCase();
+  const c = p.criminal.toLowerCase();
+  if (h.includes('overstay')) flags.push('Previous overstay — discretionary ground for refusal (new from 26 March 2026). Full disclosure required.');
+  if (h.includes('refus')) flags.push('Previous refusal — must be disclosed. Strengthen application with clear explanation and fresh supporting evidence.');
+  if (h.includes('deport')) flags.push('Previous deportation/removal — 10-year re-entry ban likely. Seek specialist advice before applying.');
+  if (VISA_BRAKE_SW.includes(p.nat)) flags.push('VISA BRAKE: Afghan nationals cannot obtain Skilled Worker entry clearance (in force 26 March 2026). In-country applications unaffected.');
+  if (VISA_BRAKE_NATIONS.includes(p.nat) && p.nat !== 'afghan') flags.push('VISA BRAKE: Student visa entry clearance refused for nationals of this country from outside the UK (26 March 2026).');
+  if (c && !c.includes('no ') && c.trim().length > 3) {
+    if (c.includes('12 month') || c.includes('year') || c.includes('custodial') || c.includes('prison')) {
+      flags.push('CRIMINAL HISTORY — sentence of 12 months+ triggers mandatory refusal of entry clearance under Part 9. Specialist immigration counsel essential.');
+    } else if (c.includes('suspend')) {
+      flags.push('SUSPENDED SENTENCE — from 26 March 2026, suspended sentences of 12 months+ now trigger the criminality ground for refusal under Part 9 (HC 1691). Check whether this applies.');
+    } else {
+      flags.push('Criminal history noted — disclosure required. Assess under Part 9 discretionary grounds. Cautions and minor offences may still be relevant.');
+    }
+  }
+  if (!p.passport) flags.push('Passport validity not confirmed — must be valid for full period of leave sought plus travel.');
+  return flags;
+}
+
+function getNatLinks(nat) {
+  return NAT_LINKS[nat] || NAT_LINKS['default'];
+}
+
+document.getElementById('assess-btn').addEventListener('click', () => {
+  const p = collectProfile();
+  const routes = buildRoutes(p);
+  const adverseFlags = getAdverseFlags(p);
+  const natLinks = getNatLinks(p.nat);
+  const rankClasses = ['rank1','rank2','rank3'];
+  const rankLabels = ['1st recommendation','2nd option','3rd option'];
+
+  let html = `
+    <div class="result-hdr">${p.name ? `Assessment — ${p.name}` : 'Route Assessment'}</div>
+    <div class="result-sub">${p.nat ? `Nationality: ${document.getElementById('f-nat').options[document.getElementById('f-nat').selectedIndex].text}` : ''} ${p.location ? '· '+document.getElementById('f-location').options[document.getElementById('f-location').selectedIndex].text : ''} ${p.longterm ? '· Objective: '+document.getElementById('f-longterm').options[document.getElementById('f-longterm').selectedIndex].text : ''}</div>`;
+
+  if (adverseFlags.length) {
+    html += `<div class="adverse-box"><div class="adverse-title">⚠ Issues requiring attention</div><ul class="adverse-list">${adverseFlags.map(f=>`<li>${f}</li>`).join('')}</ul></div>`;
+  }
+
+  html += `<div class="route-cards">`;
+  routes.forEach((r, i) => {
+    html += `
+    <div class="route-card ${rankClasses[i]}" id="rc-${r.id}">
+      <div class="route-card-hdr" onclick="toggleRoute('${r.id}')">
+        <div class="route-rank">${i+1}</div>
+        <div>
+          <div class="route-name">${r.name}</div>
+          <div class="route-tagline">${rankLabels[i]} · ${r.tagline}</div>
+        </div>
+        <div class="route-badges">${r.badges.map(b=>`<span class="badge ${b.cls}">${b.label}</span>`).join('')}</div>
+        <span class="chevron" id="chev-${r.id}">▼</span>
+      </div>
+      <div class="route-body" id="rb-${r.id}">
+        <div class="req-grid">
+          ${r.reqs.map(req=>`<div class="req-item"><div class="req-label">${req.label}</div><div class="req-val ${req.cls||''}">${req.val}</div></div>`).join('')}
+        </div>
+        <div class="route-links">
+          ${r.links.map(l=>`<a href="${l.url}" class="route-link" target="_blank" rel="noopener">↗ ${l.label}</a>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+
+  // Nationality-specific links
+  html += `<div class="nat-section"><div class="nat-title">Nationality-specific links & clearances</div><div class="nat-links">`;
+  natLinks.forEach(l => {
+    html += `<a href="${l.url}" class="nat-link" target="_blank" rel="noopener"><span class="nat-link-icon">🔗</span><span class="nat-link-text">${l.label}</span><span class="nat-link-arrow">↗</span></a>`;
+  });
+  html += `</div></div>`;
+
+  // Home Office clearances
+  html += `<div class="nat-section"><div class="nat-title">Home Office clearance systems & tools</div><div class="nat-links">`;
+  CLEARANCE_LINKS.forEach(l => {
+    html += `<a href="${l.url}" class="nat-link" target="_blank" rel="noopener"><span class="nat-link-icon">🏛</span><span class="nat-link-text"><strong>${l.label}</strong> — ${l.desc}</span><span class="nat-link-arrow">↗</span></a>`;
+  });
+  html += `</div></div>`;
+
+  // AI prompt
+  const profile = `Client: ${p.name||'(unnamed)'}, nationality: ${p.nat||'not given'}, location: ${p.location||'not given'}, salary: £${p.salary||'unknown'}, sponsor: ${p.sponsor||'none'}, objective: ${p.longterm||'not given'}, employment: ${p.employment||'not given'}, family: ${p.relationship||'none'}, history: "${p.history||'none'}", criminal: "${p.criminal||'none'}". Based on this profile, what are the key eligibility risks and considerations for their top immigration options under the current UK Immigration Rules (April 2026)?`;
+  html += `<div style="margin-top:16px;padding:14px 16px;background:var(--pale);border:1px solid #BFDBFE;border-radius:8px;display:flex;align-items:center;gap:12px">
+    <div style="flex:1"><strong style="color:var(--navy);font-size:13px">Get AI analysis of this profile</strong><div style="font-size:12px;color:var(--muted)">Ask the AI Adviser to review the assessment and flag specific risks</div></div>
+    <button class="btn btn-primary" onclick="sendAI('${profile.replace(/'/g,"\\'")}')">✦ Analyse with AI →</button>
+  </div>`;
+
+  document.getElementById('results-content').innerHTML = html;
+
+  // Show results tab
+  document.getElementById('results-tab').style.display = 'flex';
+  document.getElementById('result-dot').style.display = 'inline-block';
+  document.getElementById('result-dot').className = 'tab-dot ' + (adverseFlags.length ? 'amber' : '');
+
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => { if (t.dataset.tab === 'results') t.classList.add('active'); });
+  ['profiler','salary','fees'].forEach(t => { const el = document.getElementById('tab-'+t); if(el) el.style.display='none'; });
+  document.getElementById('tab-results').style.display = 'block';
+  document.getElementById('main-panel').scrollTo(0, 0);
+});
+
+function toggleRoute(id) {
+  const body = document.getElementById('rb-'+id);
+  const chev = document.getElementById('chev-'+id);
+  const open = body.classList.contains('open');
+  body.classList.toggle('open', !open);
+  chev.classList.toggle('open', !open);
+}
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+  document.querySelectorAll('#tab-profiler input, #tab-profiler select, #tab-profiler textarea').forEach(el => {
+    if (el.type === 'date' || el.type === 'number' || el.type === 'text') el.value = '';
+    else if (el.tagName === 'SELECT') el.selectedIndex = 0;
+    else if (el.tagName === 'TEXTAREA') el.value = '';
+  });
+});
+
+// ─── AI ───────────────────────────────────────────────────────────────────
+let aiMsgs = [];
+let aiLoading = false;
+const SYS = `You are an expert UK immigration law adviser for practitioners. You have comprehensive knowledge of all UK Immigration Rules as at April 2026, including HC 1691 (5 March 2026). You know: Skilled Worker route (salary thresholds £38,700 general / £30,960 new entrant, pay period compliance from 8 April 2026, Visa Brake for Afghan nationals); Student route (Visa Brake for Afghan/Cameroonian/Myanmar/Sudanese nationals from outside UK 26 March 2026); family route (£29,000 MIR, Appendix FM, FM-SE); Global Talent (Design pathway from 1 July 2026); EUSS (Appendix EU); asylum (30-month refugee leave from 2 March 2026 claims); suitability and Part 9 (suspended sentences now trigger criminality ground from 26 March 2026; new prior immigration breach ground); IHS rates (£1,035/yr standard, £776/yr students/children/YMS); visa fees (Skilled Worker £819/£1,618, Partner £2,064 outside UK, ILR £3,226, naturalisation £1,709, all as at 8 April 2026 increases); key case law (Odelola, HJ Iran, ZH Tanzania, Agyarko, MM Lebanon, Kolicaj UKSC 2025, Onuzi EWCA 2025, Hardial Singh); earned settlement proposals (not yet in force); ETA (fully operational). Give precise practitioner-level answers with rule references and case citations. Current date: April 2026.`;
+
+async function sendAI(q) {
+  if (aiLoading || !q.trim()) return;
+  aiLoading = true;
+  document.getElementById('ai-send').disabled = true;
+  aiMsgs.push({role:'user',content:q});
+  renderAI(true);
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYS,messages:aiMsgs})});
+    const d = await r.json();
+    const txt = d.content?.[0]?.text || 'Unable to get response. Please try again.';
+    aiMsgs.push({role:'assistant',content:txt});
+  } catch(e) {
+    aiMsgs.push({role:'assistant',content:'Connection error. Please try again.'});
+  }
+  aiLoading = false;
+  document.getElementById('ai-send').disabled = false;
+  renderAI(false);
+}
+
+function renderAI(showTyping) {
+  const el = document.getElementById('ai-msgs');
+  el.innerHTML = `<div class="ai-msg-ai"><div class="bubble">I'm your immigration law adviser. I can assess client eligibility, explain route requirements, flag adverse history issues, and advise on fee planning. Enter client details and run an assessment, or ask me anything directly.</div></div>`;
+  aiMsgs.forEach(m => {
+    const u = m.role === 'user';
+    el.insertAdjacentHTML('beforeend',`<div class="${u?'ai-msg-user':'ai-msg-ai'}"><div class="bubble">${m.content.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\*(.*?)\*/g,'<em>$1</em>')}</div></div>`);
+  });
+  if (showTyping) el.insertAdjacentHTML('beforeend','<div class="ai-msg-ai"><div class="bubble ai-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>');
+  el.scrollTop = el.scrollHeight;
+}
+
+document.getElementById('ai-send').addEventListener('click', () => {
+  const inp = document.getElementById('ai-input');
+  const q = inp.value.trim();
+  if (q) { inp.value = ''; sendAI(q); }
+});
+document.getElementById('ai-input').addEventListener('keydown', e => {
+  if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); const q=e.target.value.trim(); if(q){e.target.value='';sendAI(q);} }
+});
+document.querySelectorAll('.ai-qbtn').forEach(b => b.addEventListener('click', () => sendAI(b.dataset.q)));
+document.getElementById('ai-toggle').addEventListener('click', () => {
+  const p = document.getElementById('ai-panel');
+  const btn = document.getElementById('ai-toggle');
+  const closed = p.classList.toggle('closed');
+  btn.classList.toggle('on', !closed);
+});
+document.getElementById('ai-toggle').click();
+
+// Init calcs
+calcIHS();
+calcVF();
+calcEmployer();
+</script>
+</body>
+</html>
