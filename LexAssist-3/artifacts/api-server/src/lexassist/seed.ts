@@ -13,6 +13,7 @@ const DEFAULT_USERS = [
   { username: "kayaam.bashir", password: "Bashir12", displayName: "Kayaam Bashir", role: "fee_earner" as const },
   { username: "faizal.lunat", password: "Lunat12", displayName: "Faizal Lunat", role: "fee_earner" as const },
   { username: "admin", password: "admin12", displayName: "Admin", role: "admin" as const, department: "both" as const },
+  { username: "readonly", password: "Readonly12", displayName: "Read Only", role: "read_only" as const, department: "both" as const },
 ];
 
 const CONVEYANCING_RULES: { matterType: string; stage: string; ruleKey: string; ruleName: string; required: boolean }[] = [
@@ -81,6 +82,56 @@ const CONVEYANCING_RULES: { matterType: string; stage: string; ruleKey: string; 
   { matterType: "remortgage", stage: "Post Completion", ruleKey: "REM_PO_02", ruleName: "Title registration confirmed", required: false },
 ];
 
+const IMMIGRATION_STAGES = [
+  "Onboarding / Induction",
+  "Eligibility and Assessment",
+  "Advice on Viable Routes",
+  "Form Filling / Application",
+  "Fee Payment / IHS",
+  "Biometric Booking",
+  "Application Outcome",
+  "Appeal / JR / AR (if applicable)",
+] as const;
+
+const IMMIGRATION_MATTER_TYPE_KEYS = [
+  "visa_application",
+  "asylum",
+  "appeal",
+  "settlement",
+  "naturalisation",
+] as const;
+
+/** Shared compliance rules applied to every immigration matter type (v1). */
+const IMMIGRATION_RULE_DEFS: { stage: string; ruleKey: string; ruleName: string; required: boolean }[] = [
+  { stage: IMMIGRATION_STAGES[0], ruleKey: "IMM_OB_01", ruleName: "Conflict check completed", required: true },
+  { stage: IMMIGRATION_STAGES[0], ruleKey: "IMM_OB_02", ruleName: "Client ID / AML check completed", required: true },
+  { stage: IMMIGRATION_STAGES[0], ruleKey: "IMM_OB_03", ruleName: "Retainer / engagement letter signed", required: true },
+  { stage: IMMIGRATION_STAGES[1], ruleKey: "IMM_EA_01", ruleName: "Eligibility assessment recorded", required: true },
+  { stage: IMMIGRATION_STAGES[1], ruleKey: "IMM_EA_02", ruleName: "Supporting evidence checklist started", required: false },
+  { stage: IMMIGRATION_STAGES[2], ruleKey: "IMM_AR_01", ruleName: "Advice on viable routes confirmed in writing", required: true },
+  { stage: IMMIGRATION_STAGES[2], ruleKey: "IMM_AR_02", ruleName: "Client instructions on chosen route obtained", required: true },
+  { stage: IMMIGRATION_STAGES[3], ruleKey: "IMM_FA_01", ruleName: "Application form drafted and reviewed", required: true },
+  { stage: IMMIGRATION_STAGES[3], ruleKey: "IMM_FA_02", ruleName: "Supporting bundle assembled", required: true },
+  { stage: IMMIGRATION_STAGES[4], ruleKey: "IMM_FI_01", ruleName: "Home Office fee payment evidence retained", required: true },
+  { stage: IMMIGRATION_STAGES[4], ruleKey: "IMM_FI_02", ruleName: "IHS payment evidence retained (if applicable)", required: false },
+  { stage: IMMIGRATION_STAGES[5], ruleKey: "IMM_BB_01", ruleName: "Biometrics appointment booked / confirmed", required: true },
+  { stage: IMMIGRATION_STAGES[6], ruleKey: "IMM_AO_01", ruleName: "Application outcome recorded", required: true },
+  { stage: IMMIGRATION_STAGES[6], ruleKey: "IMM_AO_02", ruleName: "Client notified of outcome", required: true },
+  { stage: IMMIGRATION_STAGES[7], ruleKey: "IMM_AJ_01", ruleName: "Appeal / JR / AR assessment completed (if applicable)", required: false },
+  { stage: IMMIGRATION_STAGES[7], ruleKey: "IMM_AJ_02", ruleName: "Appeal / JR / AR lodged or confirmed not proceeding", required: false },
+];
+
+const IMMIGRATION_RULES: { matterType: string; stage: string; ruleKey: string; ruleName: string; required: boolean }[] =
+  IMMIGRATION_MATTER_TYPE_KEYS.flatMap((matterType) =>
+    IMMIGRATION_RULE_DEFS.map((rule) => ({
+      matterType,
+      stage: rule.stage,
+      ruleKey: `${rule.ruleKey}_${matterType.slice(0, 3).toUpperCase()}`,
+      ruleName: rule.ruleName,
+      required: rule.required,
+    })),
+  );
+
 async function seedOrganisationAndUsers() {
   const existingOrgs = await db.select().from(organisations);
   let orgId: number;
@@ -96,8 +147,12 @@ async function seedOrganisationAndUsers() {
   }
 
   const existingUsers = await db.select().from(users);
-  if (existingUsers.length === 0) {
-    for (const u of DEFAULT_USERS) {
+  const byUsername = new Map(existingUsers.map((u) => [u.username, u]));
+  let created = 0;
+  let updated = 0;
+  for (const u of DEFAULT_USERS) {
+    const existing = byUsername.get(u.username);
+    if (!existing) {
       const hash = await bcrypt.hash(u.password, 10);
       await db.insert(users).values({
         username: u.username,
@@ -107,8 +162,51 @@ async function seedOrganisationAndUsers() {
         department: (u as any).department || "conveyancing",
         organisationId: orgId,
       });
+      created++;
+      continue;
     }
-    console.log(`Created ${DEFAULT_USERS.length} default users`);
+    // Keep demo credentials in sync (seed passwords are the source of truth for DEFAULT_USERS).
+    const matches = await bcrypt.compare(u.password, existing.passwordHash);
+    const desiredDept = (u as any).department || existing.department || "conveyancing";
+    const needsUpdate =
+      !matches ||
+      existing.role !== u.role ||
+      existing.displayName !== u.displayName ||
+      existing.department !== desiredDept;
+    if (needsUpdate) {
+      const hash = matches ? existing.passwordHash : await bcrypt.hash(u.password, 10);
+      await db.update(users).set({
+        passwordHash: hash,
+        displayName: u.displayName,
+        role: u.role,
+        department: desiredDept,
+      }).where(eq(users.id, existing.id));
+      updated++;
+    }
+  }
+  if (created > 0 || updated > 0) {
+    console.log(`Seed users: created ${created}, updated ${updated}`);
+  }
+
+  const SECOND_ORG_NAME = "Isolation Test Firm";
+  let second = existingOrgs.find((o) => o.name === SECOND_ORG_NAME);
+  if (!second) {
+    const [createdOrg] = await db.insert(organisations).values({ name: SECOND_ORG_NAME }).returning();
+    second = createdOrg;
+    console.log(`Created second organisation: ${SECOND_ORG_NAME}`);
+  }
+  const otherUsername = "other.admin";
+  const otherExisting = byUsername.get(otherUsername) || existingUsers.find((u) => u.username === otherUsername);
+  if (!otherExisting) {
+    await db.insert(users).values({
+      username: otherUsername,
+      passwordHash: await bcrypt.hash("Other12", 10),
+      displayName: "Other Admin",
+      role: "admin",
+      department: "both",
+      organisationId: second.id,
+    });
+    console.log("Seeded other.admin for isolation tests");
   }
 
   const mattersWithoutOrg = await db.select().from(matters).where(sql`organisation_id IS NULL`);
@@ -122,19 +220,36 @@ async function seedOrganisationAndUsers() {
 
 async function seedRuleTemplates() {
   const existing = await db.select().from(ruleTemplates);
-  if (existing.length > 0) return;
+  const hasConveyancing = existing.some((r) => r.moduleType === "conveyancing");
+  const hasImmigration = existing.some((r) => r.moduleType === "immigration");
 
-  for (const rule of CONVEYANCING_RULES) {
-    await db.insert(ruleTemplates).values({
-      moduleType: "conveyancing",
-      matterType: rule.matterType,
-      stage: rule.stage,
-      ruleKey: rule.ruleKey,
-      ruleName: rule.ruleName,
-      required: rule.required,
-    });
+  if (!hasConveyancing) {
+    for (const rule of CONVEYANCING_RULES) {
+      await db.insert(ruleTemplates).values({
+        moduleType: "conveyancing",
+        matterType: rule.matterType,
+        stage: rule.stage,
+        ruleKey: rule.ruleKey,
+        ruleName: rule.ruleName,
+        required: rule.required,
+      });
+    }
+    console.log(`Seeded ${CONVEYANCING_RULES.length} conveyancing rule templates`);
   }
-  console.log(`Seeded ${CONVEYANCING_RULES.length} conveyancing rule templates`);
+
+  if (!hasImmigration) {
+    for (const rule of IMMIGRATION_RULES) {
+      await db.insert(ruleTemplates).values({
+        moduleType: "immigration",
+        matterType: rule.matterType,
+        stage: rule.stage,
+        ruleKey: rule.ruleKey,
+        ruleName: rule.ruleName,
+        required: rule.required,
+      });
+    }
+    console.log(`Seeded ${IMMIGRATION_RULES.length} immigration rule templates`);
+  }
 }
 
 async function migrateSignedDocuments() {
@@ -143,8 +258,8 @@ async function migrateSignedDocuments() {
 
   for (const matter of allMatters) {
     const matterType = matter.type as MatterType;
-    const stages = WORKFLOW_STAGES[matterType];
-    if (!stages) continue;
+    const stages = (WORKFLOW_STAGES as readonly string[]);
+    if (!stages.length) continue;
 
     const existingTasks = await db.select().from(tasks).where(eq(tasks.matterId, matter.id));
     const hasSignedDocs = existingTasks.some(t => t.stage === "Signed Documents");

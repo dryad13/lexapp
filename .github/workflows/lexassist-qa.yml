@@ -1,0 +1,88 @@
+name: LexAssist QA (G1–G8)
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "LexAssist-3/**"
+      - ".github/workflows/lexassist-qa.yml"
+  pull_request:
+    paths:
+      - "LexAssist-3/**"
+      - ".github/workflows/lexassist-qa.yml"
+
+defaults:
+  run:
+    working-directory: LexAssist-3
+
+env:
+  CI: "true"
+  REQUIRE_REDIS: "1"
+  ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  SESSION_SECRET: "ci-session-secret"
+  DATABASE_URL: postgresql://lexassist:lexassist@127.0.0.1:54329/lexassist_test
+  REDIS_URL: redis://127.0.0.1:63799
+  TEST_API_PORT: "8080"
+  TEST_WEB_PORT: "21561"
+  TEST_OPENAI_MOCK_PORT: "18081"
+  STRIPE_SECRET_KEY: sk_test_lexassist
+  STRIPE_WEBHOOK_SECRET: whsec_test_lexassist
+  STRIPE_PRICE_ID: price_test_lexassist
+  APP_ENV: test
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: LexAssist-3/pnpm-lock.yaml
+
+      - name: Start Postgres + Redis
+        run: docker compose -f docker-compose.test.yml up -d --wait
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: G1 Typecheck
+        run: pnpm typecheck
+
+      - name: G3 Hardening (Redis required)
+        run: pnpm test:hardening
+
+      - name: G2 API suite
+        run: pnpm test:api
+
+      - name: G4 Coverage
+        run: pnpm test:coverage
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: G5–G7 E2E (excl. @broken) + a11y
+        run: |
+          pnpm test:e2e
+          pnpm test:a11y
+
+      - name: G8 Audit
+        run: pnpm test:audit
+
+      - name: Upload reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-reports
+          path: |
+            LexAssist-3/coverage/**
+            LexAssist-3/playwright-report/**
+            LexAssist-3/test-results/**
+          if-no-files-found: ignore

@@ -1,5 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { getAuthToken, clearAuthToken } from "./queryClient";
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import type { UserRole, Department } from "@shared/schema";
 import { ROLE_PERMISSIONS } from "@shared/schema";
 
@@ -49,17 +48,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     displayName: "",
     permissions: defaultPerms,
   });
+  const refreshGen = useRef(0);
 
   const refresh = useCallback(async () => {
-    const token = getAuthToken();
-    if (!token) {
-      setState(prev => ({ ...prev, authenticated: false }));
-      return;
-    }
+    const gen = ++refreshGen.current;
     try {
-      const res = await fetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch("/api/auth/me", { credentials: "include" });
+      if (gen !== refreshGen.current) return;
       if (res.ok) {
         const data = await res.json();
         const role = (data.role || "read_only") as UserRole;
@@ -74,11 +69,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           permissions: ROLE_PERMISSIONS[role] || defaultPerms,
         });
       } else {
-        clearAuthToken();
         setState(prev => ({ ...prev, authenticated: false }));
       }
     } catch {
-      clearAuthToken();
+      if (gen !== refreshGen.current) return;
       setState(prev => ({ ...prev, authenticated: false }));
     }
   }, []);
@@ -88,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const login = useCallback((data: { username: string; role: string; organisationId: number; displayName: string; userId?: number; department?: string }) => {
+    refreshGen.current += 1;
     const role = (data.role || "read_only") as UserRole;
     setState({
       authenticated: true,
@@ -102,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    refreshGen.current += 1;
     setState({
       authenticated: false,
       username: "",

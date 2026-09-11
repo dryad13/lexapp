@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { getAuthToken } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Select,
   SelectContent,
@@ -23,7 +23,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Plus, Mail, Sparkles, Trash2 } from "lucide-react";
-import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { DraftEmail, Matter } from "@shared/schema";
 import { format } from "date-fns";
@@ -100,12 +99,10 @@ export default function DraftEmails() {
     }
     setGenerating(true);
     try {
-      const token = getAuthToken();
-      const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
-      if (token) fetchHeaders["Authorization"] = `Bearer ${token}`;
       const response = await fetch("/api/ai/generate-email", {
         method: "POST",
-        headers: fetchHeaders,
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipient: formRecipient,
           subject: formSubject,

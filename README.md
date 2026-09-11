@@ -1,82 +1,66 @@
-# UK Legal Onboarding + Post-Completion MVP (Monorepo)
+# LexAssist-3
 
-This repo contains:
-- `apps/api`: FastAPI + Postgres (async SQLAlchemy 2.0) + Alembic + Celery + Stripe webhook + PDF report
-- `apps/firm-portal`: Next.js PWA for staff (admin/fee earner/assistant)
-- `apps/client-portal`: Next.js PWA for client onboarding via secure link token
-- `packages/shared`: shared TS types (minimal)
-- `docker-compose.yml`: postgres + redis + api + worker
+UK legal practice app (conveyancing + immigration): Express API, React/Vite SPA, Postgres, Redis.
+
+All product code lives in [`LexAssist-3/`](LexAssist-3/).
 
 ## Quick start
 
-### 1) Prereqs
-- Docker + Docker Compose
-- Node 18+ (or 20+)
-
-### 2) Configure env
 ```bash
-cp .env.example .env
-cp apps/api/.env.example apps/api/.env
-cp apps/firm-portal/.env.example apps/firm-portal/.env
-cp apps/client-portal/.env.example apps/client-portal/.env
+cd LexAssist-3
+pnpm install
 ```
 
-Edit Stripe variables in `.env` / `apps/api/.env`:
-- `STRIPE_SECRET_KEY` (test)
-- `STRIPE_PUBLISHABLE_KEY` (test)
-- `STRIPE_WEBHOOK_SECRET` (test)
+### Test database + Redis
 
-### 3) Start backend stack
 ```bash
-docker compose up --build
+pnpm test:db:up
+# Postgres: localhost:54329 (user/pass/db: lexassist / lexassist / lexassist_test)
+# Redis:    localhost:63799
 ```
 
-API: http://localhost:8000  
-Docs: http://localhost:8000/docs
+Local Postgres fallback (no Docker): create DB `lexassist_test` and set:
 
-On first boot, the API:
-- runs Alembic migrations
-- seeds demo firm + user + matter + onboarding request
-
-### 4) Start frontends
-From repo root:
 ```bash
-npm install
-npm run dev:firm
+export DATABASE_URL=postgresql://USER@127.0.0.1:5432/lexassist_test
+export REDIS_URL=redis://127.0.0.1:63799
 ```
 
-In another terminal:
+### Run the app (dev)
+
 ```bash
-npm run dev:client
+# Terminal 1 — API (default :8080)
+pnpm --filter @workspace/api-server run dev
+
+# Terminal 2 — SPA (Vite proxies /api → :8080)
+pnpm --filter @workspace/lexassist run dev
 ```
 
-Firm Portal: http://localhost:3000  
-Client Portal: http://localhost:3002
+### Tests
 
-## Demo credentials (seeded)
-Firm portal login:
-- Email: `admin@demo-firm.co.uk`
-- Password: `Password123!`
-
-## Stripe webhook (local)
-Recommended: Stripe CLI
 ```bash
-stripe listen --forward-to localhost:8000/api/v1/stripe/webhook
-```
-Copy the signing secret into `apps/api/.env` as `STRIPE_WEBHOOK_SECRET`.
-
-Test card:
-- `4242 4242 4242 4242`
-- any future expiry / any CVC / any postcode
-
-## Smoke test
-```bash
-bash scripts/smoke-test.sh
+cd LexAssist-3
+pnpm test:db:up
+pnpm test:qa          # typecheck + hardening + api + coverage + e2e smoke
+pnpm test:hardening   # Stripe, sessions, rate-limit, PDF jobs, pool, isolation (set REQUIRE_REDIS=1 in CI)
+pnpm test:api
+pnpm test:e2e
+pnpm test:a11y
 ```
 
-## Environment variables
-See:
-- `.env.example` (root)
-- `apps/api/.env.example`
-- `apps/firm-portal/.env.example`
-- `apps/client-portal/.env.example`
+Full gate matrix (G1–G12): [`LexAssist-3/docs/QA_MATRIX.md`](LexAssist-3/docs/QA_MATRIX.md).
+
+## Seed credentials
+
+| User | Password | Role |
+|------|----------|------|
+| `admin` | `admin12` | admin |
+| `hasinah.ahmed` | `Ahmed12` | fee_earner |
+| `readonly` | `Readonly12` | read_only |
+
+## Deploy
+
+- Docker: [`LexAssist-3/Dockerfile`](LexAssist-3/Dockerfile)
+- Render: [`LexAssist-3/render.yaml`](LexAssist-3/render.yaml)
+
+Set `ENCRYPTION_KEY` (64-char hex), `SESSION_SECRET`, `DATABASE_URL`, `REDIS_URL`, and optionally Stripe (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`).

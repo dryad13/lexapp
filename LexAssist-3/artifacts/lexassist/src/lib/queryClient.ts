@@ -1,26 +1,6 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-const TOKEN_KEY = "conveyflow_auth_token";
-
-export function getAuthToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-export function setAuthToken(token: string) {
-  localStorage.setItem(TOKEN_KEY, token);
-}
-
-export function clearAuthToken() {
-  localStorage.removeItem(TOKEN_KEY);
-}
-
-function getAuthHeaders(): Record<string, string> {
-  const token = getAuthToken();
-  if (token) {
-    return { Authorization: `Bearer ${token}` };
-  }
-  return {};
-}
+const fetchOpts: Pick<RequestInit, "credentials"> = { credentials: "include" };
 
 let isRedirecting = false;
 
@@ -28,7 +8,6 @@ async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     if (res.status === 401 && !isRedirecting) {
       isRedirecting = true;
-      clearAuthToken();
       setTimeout(() => { isRedirecting = false; }, 3000);
       window.location.reload();
       throw new Error("Session expired");
@@ -43,9 +22,7 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const headers: Record<string, string> = {
-    ...getAuthHeaders(),
-  };
+  const headers: Record<string, string> = {};
   if (data) {
     headers["Content-Type"] = "application/json";
   }
@@ -53,6 +30,7 @@ export async function apiRequest(
   const res = await fetch(url, {
     method,
     headers,
+    credentials: "include",
     body: data ? JSON.stringify(data) : undefined,
   });
 
@@ -66,9 +44,7 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
-      headers: getAuthHeaders(),
-    });
+    const res = await fetch(queryKey.join("/") as string, fetchOpts);
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;

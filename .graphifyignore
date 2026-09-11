@@ -15,6 +15,3 @@ target/
 
 # Graphify output
 graphify-out/
-
-# Duplicate/exported copies, not the live source
-files/

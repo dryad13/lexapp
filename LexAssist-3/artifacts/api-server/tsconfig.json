@@ -4,11 +4,16 @@
     "outDir": "dist",
     "rootDir": "src",
     "types": ["node"],
+    "noImplicitReturns": false,
     "paths": {
-      "@shared/*": ["../../shared/*"]
+      "@shared/*": ["./src/shared/*"]
     }
   },
-  "include": ["src", "../../shared"],
+  "include": ["src"],
+  "exclude": [
+    "src/lexassist/vite.ts",
+    "src/lexassist/replit_integrations"
+  ],
   "references": [
     {
       "path": "../../lib/db"

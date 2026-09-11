@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Switch, Route, useLocation, Router } from "wouter";
-import { queryClient, getAuthToken, clearAuthToken, setAuthToken } from "./lib/queryClient";
+import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -67,13 +67,11 @@ function AppContent() {
 
   const handleLogin = (data: {
     username: string;
-    token: string;
     role: string;
     organisationId: number;
     displayName: string;
     department?: string;
   }) => {
-    setAuthToken(data.token);
     login({
       username:       data.username,
       role:           data.role,
@@ -85,12 +83,10 @@ function AppContent() {
   };
 
   const handleLogout = async () => {
-    const token = getAuthToken();
     await fetch("/api/auth/logout", {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: "include",
     });
-    clearAuthToken();
     logout();
     queryClient.clear();
     setLocation("/");
@@ -191,11 +187,12 @@ function AppContent() {
                   variant="ghost"
                   size="icon"
                   onClick={handleLogout}
+                  aria-label="Sign out"
                   title="Sign out"
                   style={{ color: "#1B4D3E" }}
                   className="hover:bg-primary/10"
                 >
-                  <LogOut className="h-4 w-4" />
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </div>
             </header>

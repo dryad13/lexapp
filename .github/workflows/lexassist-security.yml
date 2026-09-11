@@ -1,0 +1,53 @@
+name: LexAssist ZAP Baseline (G10)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * 1"
+
+defaults:
+  run:
+    working-directory: LexAssist-3
+
+env:
+  ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  SESSION_SECRET: "ci-session-secret"
+  DATABASE_URL: postgresql://lexassist:lexassist@127.0.0.1:54329/lexassist_test
+  REDIS_URL: redis://127.0.0.1:63799
+  PORT: "8080"
+  APP_ENV: test
+  REQUIRE_REDIS: "1"
+
+jobs:
+  zap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: LexAssist-3/pnpm-lock.yaml
+      - run: docker compose -f docker-compose.test.yml up -d --wait
+      - run: pnpm install --frozen-lockfile
+      - name: Start API
+        run: |
+          node --import tsx artifacts/api-server/src/lexassist/index.ts &
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:8080/api/healthz && break
+            sleep 1
+          done
+      - name: G10 ZAP baseline
+        env:
+          ZAP_TARGET: http://172.17.0.1:8080
+        run: bash scripts/zap-baseline.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zap-report
+          path: LexAssist-3/test-results/zap/**
+          if-no-files-found: ignore

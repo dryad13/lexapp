@@ -42,7 +42,7 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Matter, Task, Reminder, DraftEmail, Document as MatterDoc, EnquiryPack, MatterType } from "@shared/schema";
-import { WORKFLOW_STAGES, IMMIGRATION_WORKFLOW_STAGES, IMMIGRATION_MATTER_TYPES, getRemortgageStages, getImmigrationWorkflowStages } from "@shared/schema";
+import { WORKFLOW_STAGES, getRemortgageStages, getImmigrationWorkflowStages, getPracticeArea, isImmigrationMatterType } from "@shared/schema";
 import { useAuth } from "@/lib/auth-context";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -116,9 +116,9 @@ export default function MatterDetail() {
       }
       const res = await fetch(`/api/matters/${matterId}`, {
         method: "PATCH",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...((() => { const t = localStorage.getItem("auth_token"); return t ? { Authorization: `Bearer ${t}` } : {}; })()),
         },
         body: JSON.stringify(body),
       });
@@ -302,11 +302,21 @@ export default function MatterDetail() {
   const completedTasks = matter.tasks.filter((t) => t.status === "completed").length;
   const totalTasks = matter.tasks.length;
   const progressPct = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+  const isImmigration = isImmigrationMatterType(matter.type);
+  const practiceArea = getPracticeArea(matter.type);
+  const canEdit = hasPermission("canEditMatters");
+  const canProgress = hasPermission("canProgressStages");
+  const canViewFinancials = hasPermission("canViewFinancials");
 
   const typeColors: Record<string, string> = {
     sale: "bg-chart-4/10 text-chart-4",
     purchase: "bg-primary/10 text-primary",
     remortgage: "bg-chart-5/10 text-chart-5",
+    visa_application: "bg-blue-500/10 text-blue-600",
+    asylum: "bg-amber-500/10 text-amber-600",
+    appeal: "bg-red-500/10 text-red-600",
+    settlement: "bg-emerald-500/10 text-emerald-600",
+    naturalisation: "bg-purple-500/10 text-purple-600",
   };
 
   return (
@@ -322,17 +332,22 @@ export default function MatterDetail() {
             <h1 className="text-2xl font-bold tracking-tight truncate" data-testid="text-matter-title">
               {matter.title}
             </h1>
+            <Badge variant="secondary" className="text-xs" data-testid="badge-matter-practice-area">
+              {practiceArea === "immigration" ? "Immigration" : "Conveyancing"}
+            </Badge>
             <Badge className={`capitalize text-xs ${typeColors[matter.type] || ""}`}>
-              {matter.type}
+              {matter.type.replace(/_/g, " ")}
             </Badge>
             <Badge variant="outline" className="text-xs capitalize">{matter.status}</Badge>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={openEditDialog} data-testid="button-edit-matter">
-            <Pencil className="h-3.5 w-3.5 mr-1.5" />
-            Edit
-          </Button>
+          {canEdit && (
+            <Button variant="secondary" size="sm" onClick={openEditDialog} data-testid="button-edit-matter">
+              <Pencil className="h-3.5 w-3.5 mr-1.5" />
+              Edit
+            </Button>
+          )}
           {hasPermission("canDeleteMatters") && (
             <Button
               variant="destructive"
@@ -364,11 +379,13 @@ export default function MatterDetail() {
           <CardContent className="p-4 space-y-2">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4" />
-              <span>Property</span>
+              <span>{isImmigration ? "Client Address" : "Property"}</span>
             </div>
             <p className="font-medium text-sm" data-testid="text-property-address">{matter.propertyAddress}</p>
             {matter.price && (
-              <p className="text-sm font-semibold text-primary">{matter.price}</p>
+              <p className="text-sm font-semibold text-primary">
+                {isImmigration ? `Fee: ${matter.price}` : matter.price}
+              </p>
             )}
           </CardContent>
         </Card>
@@ -388,87 +405,93 @@ export default function MatterDetail() {
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
-        <Dialog open={reminderDialogOpen} onOpenChange={setReminderDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="secondary" size="sm" data-testid="button-add-reminder">
-              <Bell className="h-3.5 w-3.5 mr-1.5" />
-              Add Reminder
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="glass">
-            <DialogHeader>
-              <DialogTitle>Create Reminder</DialogTitle>
-              <DialogDescription>Set a due date to receive a reminder</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleReminderSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="reminder-title">Title</Label>
-                <Input id="reminder-title" name="title" placeholder="e.g., Follow up on searches" required data-testid="input-reminder-title" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reminder-date">Due Date</Label>
-                <Input id="reminder-date" name="dueDate" type="date" required data-testid="input-reminder-date" />
-              </div>
-              <Button type="submit" className="w-full" disabled={createReminderMutation.isPending} data-testid="button-submit-reminder">
-                {createReminderMutation.isPending ? "Creating..." : "Create Reminder"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+        {canEdit && (
+          <>
+            <Dialog open={reminderDialogOpen} onOpenChange={setReminderDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="secondary" size="sm" data-testid="button-add-reminder">
+                  <Bell className="h-3.5 w-3.5 mr-1.5" />
+                  Add Reminder
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="glass">
+                <DialogHeader>
+                  <DialogTitle>Create Reminder</DialogTitle>
+                  <DialogDescription>Set a due date to receive a reminder</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleReminderSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="reminder-title">Title</Label>
+                    <Input id="reminder-title" name="title" placeholder="e.g., Follow up on searches" required data-testid="input-reminder-title" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reminder-date">Due Date</Label>
+                    <Input id="reminder-date" name="dueDate" type="date" required data-testid="input-reminder-date" />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={createReminderMutation.isPending} data-testid="button-submit-reminder">
+                    {createReminderMutation.isPending ? "Creating..." : "Create Reminder"}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
 
-        <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="secondary" size="sm" data-testid="button-add-email">
-              <Mail className="h-3.5 w-3.5 mr-1.5" />
-              Draft Email
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="glass sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Create Draft Email</DialogTitle>
-              <DialogDescription>Save a draft email for this matter</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleEmailSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email-recipient">Recipient</Label>
-                <Input id="email-recipient" name="recipient" placeholder="email@example.com" data-testid="input-email-recipient" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email-subject">Subject</Label>
-                <Input id="email-subject" name="subject" placeholder="Email subject" required data-testid="input-email-subject" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email-body">Body</Label>
-                <Textarea id="email-body" name="body" placeholder="Email content..." rows={6} required data-testid="input-email-body" />
-              </div>
-              <Button type="submit" className="w-full" disabled={createEmailMutation.isPending} data-testid="button-submit-email">
-                {createEmailMutation.isPending ? "Saving..." : "Save Draft"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+            <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="secondary" size="sm" data-testid="button-add-email">
+                  <Mail className="h-3.5 w-3.5 mr-1.5" />
+                  Draft Email
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="glass sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Create Draft Email</DialogTitle>
+                  <DialogDescription>Save a draft email for this matter</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleEmailSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email-recipient">Recipient</Label>
+                    <Input id="email-recipient" name="recipient" placeholder="email@example.com" data-testid="input-email-recipient" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email-subject">Subject</Label>
+                    <Input id="email-subject" name="subject" placeholder="Email subject" required data-testid="input-email-subject" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email-body">Body</Label>
+                    <Textarea id="email-body" name="body" placeholder="Email content..." rows={6} required data-testid="input-email-body" />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={createEmailMutation.isPending} data-testid="button-submit-email">
+                    {createEmailMutation.isPending ? "Saving..." : "Save Draft"}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </>
+        )}
       </div>
 
       <Tabs defaultValue="workflow" className="w-full">
         <TabsList className="w-full justify-start glass-subtle">
           <TabsTrigger value="workflow" data-testid="tab-workflow">Workflow</TabsTrigger>
-          {matter.type !== "sale" && !(IMMIGRATION_MATTER_TYPES as readonly string[]).includes(matter.type) && (
+          {!isImmigration && matter.type !== "sale" && (
             <TabsTrigger value="enquiries-builder" data-testid="tab-enquiries-builder" className="flex items-center gap-1.5">
               <FileText className="h-3.5 w-3.5" />
               Enquiries
             </TabsTrigger>
           )}
           <TabsTrigger value="enquiries" data-testid="tab-enquiries" className="flex items-center gap-1.5">
-            Docs & AI
-            {(matter.documents?.length > 0 || matter.enquiryPacks?.length > 0) && (
+            {isImmigration ? "Documents" : "Docs & AI"}
+            {(matter.documents?.length > 0 || (!isImmigration && matter.enquiryPacks?.length > 0)) && (
               <Badge variant="secondary" className="text-xs h-5 px-1.5 ml-1">
-                {(matter.documents?.length || 0) + (matter.enquiryPacks?.length || 0)}
+                {(matter.documents?.length || 0) + (isImmigration ? 0 : matter.enquiryPacks?.length || 0)}
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="finances" data-testid="tab-finances" className="flex items-center gap-1.5">
-            Finances
-          </TabsTrigger>
+          {canViewFinancials && (
+            <TabsTrigger value="finances" data-testid="tab-finances" className="flex items-center gap-1.5">
+              Finances
+            </TabsTrigger>
+          )}
           <TabsTrigger value="compliance" data-testid="tab-compliance" className="flex items-center gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5" />
             Compliance
@@ -484,8 +507,7 @@ export default function MatterDetail() {
           {matter.tasks.map((task, index) => {
             const isCompleted = task.status === "completed";
             const isCurrent = task.stage === matter.currentStage && !isCompleted;
-            const isImmigrationMatter = (IMMIGRATION_MATTER_TYPES as readonly string[]).includes(matter.type);
-            const stages = isImmigrationMatter
+            const stages = isImmigration
               ? [...getImmigrationWorkflowStages(matter.type)]
               : matter.type === "remortgage"
               ? getRemortgageStages(matter.isCompanyRemortgage || false)
@@ -501,9 +523,9 @@ export default function MatterDetail() {
                   type="button"
                   className={`flex items-center gap-3 p-3 rounded-md w-full text-left ${
                     isCurrent ? "glass-subtle" : ""
-                  } ${!isCompleted ? "hover-elevate cursor-pointer" : ""}`}
-                  onClick={() => !isCompleted && handleTaskComplete(task)}
-                  disabled={isCompleted || completeTaskMutation.isPending}
+                  } ${!isCompleted && canProgress ? "hover-elevate cursor-pointer" : ""}`}
+                  onClick={() => !isCompleted && canProgress && handleTaskComplete(task)}
+                  disabled={isCompleted || !canProgress || completeTaskMutation.isPending}
                   data-testid={`task-${task.id}`}
                 >
                   <div className="flex-shrink-0">
@@ -614,16 +636,20 @@ export default function MatterDetail() {
         </TabsContent>
 
         <TabsContent value="enquiries-builder" className="mt-4">
-          <EnquiriesBuilder matter={matter} matterId={matterId!} />
+          {!isImmigration && matter.type !== "sale" && (
+            <EnquiriesBuilder matter={matter} matterId={matterId!} />
+          )}
         </TabsContent>
 
         <TabsContent value="enquiries" className="mt-4">
           <EnquiriesTab matter={matter} matterId={matterId!} />
         </TabsContent>
 
-        <TabsContent value="finances" className="mt-4">
-          <FinancialLedger matter={matter} matterId={matterId!} />
-        </TabsContent>
+        {canViewFinancials && (
+          <TabsContent value="finances" className="mt-4">
+            <FinancialLedger matter={matter} matterId={matterId!} />
+          </TabsContent>
+        )}
 
         <TabsContent value="compliance" className="mt-4">
           <ComplianceTab
@@ -659,11 +685,11 @@ export default function MatterDetail() {
               <Input id="e-clientEmail" type="email" value={editClientEmail} onChange={(e) => setEditClientEmail(e.target.value)} data-testid="input-edit-client-email" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="e-propertyAddress">Property Address</Label>
+              <Label htmlFor="e-propertyAddress">{isImmigration ? "Client Address" : "Property Address"}</Label>
               <Textarea id="e-propertyAddress" value={editPropertyAddress} onChange={(e) => setEditPropertyAddress(e.target.value)} required data-testid="input-edit-property-address" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="e-price">Price</Label>
+              <Label htmlFor="e-price">{isImmigration ? "Fee Quote" : "Price"}</Label>
               <Input id="e-price" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} placeholder="e.g., 350,000" data-testid="input-edit-price" />
             </div>
             <div className="space-y-2">

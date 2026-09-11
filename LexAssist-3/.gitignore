@@ -47,3 +47,13 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Graphify knowledge graph (generated)
+graphify-out/
+
+# Test artifacts
+test-results/
+playwright-report/
+blob-report/
+coverage/
+.tests-pids/

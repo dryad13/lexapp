@@ -3,7 +3,6 @@
 .env.*
 !.env.example
 **/env.local
-apps/env.local
 *.pem
 *.key
 
@@ -19,19 +18,22 @@ __pycache__/
 dist/
 build/
 
-# Next.js / tooling
+# Tooling caches
 .next/
 out/
 .turbo/
 *.tsbuildinfo
 .vercel
 .netlify
+.pnpm-store/
 
 # Test / coverage
 .coverage
 htmlcov/
 .pytest_cache/
 .mypy_cache/
+test-results/
+playwright-report/
 
 # OS / IDE
 .DS_Store
@@ -44,13 +46,14 @@ Thumbs.db
 graphify-out/
 .gstack/
 
-# Large / unrelated dumps (not the live MVP)
-files/
-*.zip
-onboarding-api/
-
 # Uploads and local data
-apps/api/data/
 **/uploads/
-documents.py.save
 LexAssist-3/node_modules/
+LexAssist-3/artifacts/*/dist/
+
+# Replit asset dumps (source zips, not tracked)
+*.zip
+
+# Work-in-progress assets (not yet part of the app)
+creatives/
+*.tar.gz

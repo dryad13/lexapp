@@ -112,74 +112,56 @@ export type MatterType = "purchase" | "sale" | "remortgage" | "visa_application"
 export const IMMIGRATION_MATTER_TYPES = ["visa_application", "asylum", "appeal", "settlement", "naturalisation"] as const;
 export const CONVEYANCING_MATTER_TYPES = ["purchase", "sale", "remortgage"] as const;
 
-export const IMMIGRATION_WORKFLOW_STAGES = [
-  "Client Intake",
-  "Document Collection",
-  "Eligibility Assessment",
-  "Application Preparation",
-  "Application Submission",
-  "Awaiting Decision",
-  "Decision Received",
-  "Post-Decision Actions",
-  "Closed",
+/** Demo-active immigration types (all five today). Future types can stay in IMMIGRATION_MATTER_TYPES but off this list. */
+export const ACTIVE_IMMIGRATION_MATTER_TYPES = [
+  "visa_application",
+  "asylum",
+  "appeal",
+  "settlement",
+  "naturalisation",
 ] as const;
 
+export const PRACTICE_AREAS = ["conveyancing", "immigration"] as const;
+export type PracticeArea = (typeof PRACTICE_AREAS)[number];
+
+/** Shared immigration stage spine for all immigration matter types (v1). */
+export const IMMIGRATION_WORKFLOW_STAGES = [
+  "Onboarding / Induction",
+  "Eligibility and Assessment",
+  "Advice on Viable Routes",
+  "Form Filling / Application",
+  "Fee Payment / IHS",
+  "Biometric Booking",
+  "Application Outcome",
+  "Appeal / JR / AR (if applicable)",
+] as const;
+
+/** Per-type map kept for future divergence; all types use the shared spine today. */
 export const IMMIGRATION_WORKFLOWS = {
-  visa_application: [
-    "Client Intake & Conflict Check",
-    "AML/KYC & Source of Funds",
-    "Eligibility & Route Selection",
-    "Document Collection",
-    "Application Drafting",
-    "Application Fee + IHS Payment",
-    "Submission & Biometrics Booking",
-    "Awaiting UKVI Decision",
-    "Decision Received",
-    "BRP Collection / Status Confirmation",
-    "File Closure",
-  ],
-  asylum: [
-    "Client Intake (Vulnerability Assessment)",
-    "Screening Interview Prep",
-    "Statement of Evidence (SEF)",
-    "Country Evidence Bundle",
-    "Substantive Interview Prep",
-    "Awaiting Decision",
-    "Decision Received",
-    "Appeal Decision (if refused)",
-    "File Closure",
-  ],
-  appeal: [
-    "Notice of Appeal Lodged",
-    "Bundle Preparation",
-    "Skeleton Argument",
-    "Witness Statements",
-    "Hearing Date Listed",
-    "Hearing",
-    "Determination Received",
-    "File Closure",
-  ],
-  settlement: [
-    "Eligibility Check (Residence & Absences)",
-    "Life in the UK Test",
-    "English Language Test",
-    "Document Collection",
-    "Application & Biometrics",
-    "Awaiting Decision",
-    "BRP / ILR Issued",
-    "File Closure",
-  ],
-  naturalisation: [
-    "Eligibility (Residence & Good Character)",
-    "Referees Identified",
-    "Document Collection",
-    "Form AN Submission",
-    "Biometrics",
-    "Awaiting Decision",
-    "Citizenship Ceremony",
-    "File Closure",
-  ],
+  visa_application: IMMIGRATION_WORKFLOW_STAGES,
+  asylum: IMMIGRATION_WORKFLOW_STAGES,
+  appeal: IMMIGRATION_WORKFLOW_STAGES,
+  settlement: IMMIGRATION_WORKFLOW_STAGES,
+  naturalisation: IMMIGRATION_WORKFLOW_STAGES,
 } as const;
+
+export function isImmigrationMatterType(matterType: string): boolean {
+  return (IMMIGRATION_MATTER_TYPES as readonly string[]).includes(matterType);
+}
+
+export function isActiveImmigrationType(matterType: string): boolean {
+  return (ACTIVE_IMMIGRATION_MATTER_TYPES as readonly string[]).includes(matterType);
+}
+
+export function isConveyancingMatterType(matterType: string): boolean {
+  return (CONVEYANCING_MATTER_TYPES as readonly string[]).includes(matterType);
+}
+
+export function getPracticeArea(matterType: string): PracticeArea | null {
+  if (isImmigrationMatterType(matterType)) return "immigration";
+  if (isConveyancingMatterType(matterType)) return "conveyancing";
+  return null;
+}
 
 export function getImmigrationWorkflowStages(matterType: string): readonly string[] {
   return (IMMIGRATION_WORKFLOWS as Record<string, readonly string[]>)[matterType] || IMMIGRATION_WORKFLOW_STAGES;
@@ -191,6 +173,9 @@ export type EnquiryPackItem = {
   question: string;
   answer?: string;
   status: "pending" | "answered" | "flagged";
+  /** Builder pack selection (Excel export). */
+  libraryItemId?: number;
+  enquiryTextOverride?: string;
 };
 
 // Tables
@@ -199,6 +184,18 @@ export const organisations = pgTable("organisations", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   subscriptionPlan: text("subscription_plan").notNull().default("basic"),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const processedStripeEvents = pgTable("processed_stripe_events", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  payloadJson: jsonb("payload_json").notNull().default({}),
+  status: text("status").notNull().default("received"),
+  error: text("error"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -320,6 +317,7 @@ export const enquiryPacks = pgTable("enquiry_packs", {
 export const auditLogs = pgTable("audit_logs", {
   id: serial("id").primaryKey(),
   matterId: integer("matter_id").references(() => matters.id, { onDelete: "cascade" }),
+  organisationId: integer("organisation_id").references(() => organisations.id),
   entityType: text("entity_type").notNull(),
   entityId: integer("entity_id"),
   action: text("action").notNull(),
@@ -467,6 +465,8 @@ export const insertRiskAssessmentSchema = createInsertSchema(riskAssessments).om
 // Types
 export type Organisation = typeof organisations.$inferSelect;
 export type InsertOrganisation = z.infer<typeof insertOrganisationSchema>;
+
+export type ProcessedStripeEvent = typeof processedStripeEvents.$inferSelect;
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;

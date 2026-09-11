@@ -6,12 +6,36 @@
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/api-server\" --filter \"./artifacts/mockup-sandbox\" --filter \"./scripts\" --if-present run typecheck",
+    "typecheck:spa": "pnpm --filter @workspace/lexassist run typecheck",
+    "test": "pnpm run test:api && pnpm run test:e2e",
+    "test:api": "vitest run --config vitest.config.mts",
+    "test:hardening": "vitest run --config vitest.hardening.mts",
+    "test:coverage": "vitest run --config vitest.coverage.mts --coverage",
+    "test:e2e": "playwright test --grep-invert @broken",
+    "test:e2e:smoke": "TEST_API_PORT=${TEST_API_PORT:-18080} TEST_WEB_PORT=${TEST_WEB_PORT:-31561} TEST_OPENAI_MOCK_PORT=${TEST_OPENAI_MOCK_PORT:-28081} playwright test tests/e2e/hardening.spec.ts tests/e2e/auth.spec.ts",
+    "test:a11y": "TEST_API_PORT=${TEST_API_PORT:-18080} TEST_WEB_PORT=${TEST_WEB_PORT:-31561} TEST_OPENAI_MOCK_PORT=${TEST_OPENAI_MOCK_PORT:-28081} playwright test tests/e2e/a11y.spec.ts",
+    "test:broken": "playwright test --grep @broken",
+    "test:audit": "node scripts/audit-check.mjs",
+    "test:load": "k6 run tests/load/smoke.js",
+    "test:security:zap": "bash scripts/zap-baseline.sh",
+    "test:mutate": "echo 'Install @stryker-mutator/* and run: npx stryker run' && npx --yes stryker run || true",
+    "test:qa": "pnpm run typecheck && REQUIRE_REDIS=${REQUIRE_REDIS:-1} pnpm run test:hardening && pnpm run test:api && pnpm run test:coverage && pnpm run test:e2e:smoke",
+    "test:db:up": "docker compose -f docker-compose.test.yml up -d",
+    "test:db:down": "docker compose -f docker-compose.test.yml down"
   },
   "private": true,
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
+    "@vitest/coverage-v8": "5.0.0",
+    "ioredis": "^5.11.1",
+    "pg": "^8.16.3",
+    "playwright": "^1.63.0",
+    "prettier": "^3.8.1",
+    "tsx": "^4.23.13",
     "typescript": "~5.9.2",
-    "prettier": "^3.8.1"
+    "vitest": "^5.0.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

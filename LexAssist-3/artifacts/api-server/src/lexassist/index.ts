@@ -1,11 +1,25 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { createServer } from "http";
-import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import cors from "cors";
-import type { UserRole } from "../shared/schema";
-import { ROLE_PERMISSIONS } from "../shared/schema";
+import cookieParser from "cookie-parser";
+import { requireRole, requirePermission } from "./auth-guards";
+import { loginRateLimit, useRedisRateLimit } from "./rate-limit";
+import { pingRedis, redisReady } from "./redis";
+import { withRlsBypass } from "./db";
+import { rlsMiddleware } from "./rls-middleware";
+import {
+  createSession,
+  destroySession,
+  sessionMiddleware,
+  isPublicApiPath,
+} from "./sessions";
+import { registerStripeWebhook } from "./stripe-billing";
+import { startQueueWorkers } from "./queues";
+import { storage } from "./storage";
+
+export { requireRole, requirePermission };
 
 const app = express();
 const httpServer = createServer(app);
@@ -16,10 +30,14 @@ declare module "http" {
   }
 }
 
+const SESSION_SECRET = process.env.SESSION_SECRET || "dev-session-secret-change-me";
+
 app.use(cors({
   origin: true,
   credentials: true,
 }));
+
+app.use(cookieParser(SESSION_SECRET));
 
 app.use(
   express.json({
@@ -33,52 +51,33 @@ app.use(express.urlencoded({ extended: false }));
 
 app.set("trust proxy", 1);
 
-interface SessionData {
-  username: string;
-  userId: number;
-  organisationId: number;
-  role: UserRole;
-  department: string;
-  expiresAt: number;
-}
+app.use(sessionMiddleware);
+app.use(rlsMiddleware);
 
-const activeSessions = new Map<string, SessionData>();
-
-const SESSION_DURATION = 60 * 60 * 1000;
-
-function cleanExpiredSessions() {
-  const now = Date.now();
-  for (const [token, session] of activeSessions.entries()) {
-    if (session.expiresAt < now) {
-      activeSessions.delete(token);
+app.use(async (req: Request, _res: Response, next: NextFunction) => {
+  if ((req as any).sessionIpChanged && (req as any).username) {
+    try {
+      await storage.createAuditLog({
+        organisationId: (req as any).organisationId,
+        entityType: "session",
+        action: "IP_CHANGE",
+        details: `IP changed from ${(req as any).previousIp || "unknown"} to ${req.ip || "unknown"}`,
+        performedBy: (req as any).username,
+      });
+    } catch (err) {
+      console.error("IP change audit failed:", err);
     }
   }
-}
+  next();
+});
 
-setInterval(cleanExpiredSessions, 5 * 60 * 1000);
-
-function getSessionFromRequest(req: Request): SessionData | null {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const token = authHeader.slice(7);
-  const session = activeSessions.get(token);
-  if (!session) return null;
-  if (session.expiresAt < Date.now()) {
-    activeSessions.delete(token);
-    return null;
-  }
-  session.expiresAt = Date.now() + SESSION_DURATION;
-  return session;
-}
-
-app.post("/api/auth/login", async (req: Request, res: Response) => {
+app.post("/api/auth/login", loginRateLimit, async (req: Request, res: Response) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: "Username and password required" });
   }
 
   try {
-    const { storage } = await import("./storage");
     const user = await storage.getUserByUsername(username);
     if (!user) {
       return res.status(401).json({ error: "Invalid credentials" });
@@ -89,93 +88,67 @@ app.post("/api/auth/login", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const token = crypto.randomBytes(48).toString("hex");
-    activeSessions.set(token, {
+    const sessionId = await createSession(req, res, {
       username: user.username,
       userId: user.id,
       organisationId: user.organisationId,
-      role: user.role as UserRole,
+      role: user.role as any,
       department: user.department || "conveyancing",
-      expiresAt: Date.now() + SESSION_DURATION,
+      displayName: user.displayName,
     });
 
-    return res.json({
+    const body: Record<string, unknown> = {
       ok: true,
       username: user.username,
-      token,
       role: user.role,
       organisationId: user.organisationId,
       displayName: user.displayName,
       department: user.department || "conveyancing",
-    });
+      userId: user.id,
+    };
+    if (process.env.APP_ENV === "test") {
+      body.token = sessionId;
+    }
+    return res.json(body);
   } catch (err) {
     console.error("Login error:", err);
     return res.status(500).json({ error: "Login failed" });
   }
 });
 
-app.post("/api/auth/logout", (req: Request, res: Response) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith("Bearer ")) {
-    activeSessions.delete(authHeader.slice(7));
-  }
+app.post("/api/auth/logout", async (req: Request, res: Response) => {
+  await destroySession(req, res);
   res.json({ ok: true });
 });
 
 app.get("/api/auth/me", (req: Request, res: Response) => {
-  const session = getSessionFromRequest(req);
-  if (session) {
+  if ((req as any).userId) {
     return res.json({
       authenticated: true,
-      username: session.username,
-      userId: session.userId,
-      role: session.role,
-      organisationId: session.organisationId,
-      department: session.department || "conveyancing",
+      username: (req as any).username,
+      userId: (req as any).userId,
+      role: (req as any).role,
+      organisationId: (req as any).organisationId,
+      department: (req as any).department || "conveyancing",
+      displayName: (req as any).displayName,
     });
   }
   return res.status(401).json({ authenticated: false });
 });
 
-// Unauthenticated health for Render / load balancers
 app.get("/api/healthz", (_req: Request, res: Response) => {
-  res.json({ status: "ok" });
+  res.json({ status: "ok", redis: redisReady });
 });
+
+registerStripeWebhook(app);
 
 app.use("/api", (req: Request, res: Response, next: NextFunction) => {
-  if (req.path.startsWith("/auth/")) return next();
-  if (req.path === "/healthz") return next();
-  const session = getSessionFromRequest(req);
-  if (!session) {
+  if (isPublicApiPath(req)) return next();
+  if (!(req as any).userId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
-  (req as any).username = session.username;
-  (req as any).userId = session.userId;
-  (req as any).organisationId = session.organisationId;
-  (req as any).role = session.role;
-  (req as any).department = session.department;
   next();
 });
-
-export function requireRole(...roles: UserRole[]) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const role = (req as any).role as UserRole;
-    if (!role || !roles.includes(role)) {
-      return res.status(403).json({ error: "Insufficient permissions" });
-    }
-    next();
-  };
-}
-
-export function requirePermission(permission: keyof typeof ROLE_PERMISSIONS["admin"]) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const role = (req as any).role as UserRole;
-    if (!role || !ROLE_PERMISSIONS[role]?.[permission]) {
-      return res.status(403).json({ error: "Insufficient permissions" });
-    }
-    next();
-  };
-}
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -233,14 +206,36 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  try {
+    const ok = await pingRedis();
+    if (!ok && process.env.REQUIRE_REDIS === "1") {
+      console.error("REQUIRE_REDIS=1 but Redis is unavailable");
+      process.exit(1);
+    }
+    useRedisRateLimit();
+  } catch (err) {
+    console.error("Redis ping failed:", err);
+    if (process.env.REQUIRE_REDIS === "1") {
+      process.exit(1);
+    }
+  }
+
   const { initDatabase } = await import("./init-db");
   await initDatabase().catch((err) => console.error("DB init error:", err));
 
   const { seedDatabase } = await import("./seed");
-  await seedDatabase().catch((err) => console.error("Seed error:", err));
+  await withRlsBypass(async () => {
+    await seedDatabase().catch((err) => console.error("Seed error:", err));
+    await storage.migrateEncryption().catch((err) => console.error("Encryption migration error:", err));
+  });
 
-  const { storage } = await import("./storage");
-  await storage.migrateEncryption().catch((err) => console.error("Encryption migration error:", err));
+  const workerRole = process.env.WORKER_ROLE;
+  await startQueueWorkers(workerRole || undefined);
+
+  if (workerRole) {
+    log(`worker role=${workerRole}`);
+    return;
+  }
 
   await registerRoutes(httpServer, app);
 

@@ -1,0 +1,53 @@
+name: LexAssist Load Smoke (G9)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+
+defaults:
+  run:
+    working-directory: LexAssist-3
+
+env:
+  ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  SESSION_SECRET: "ci-session-secret"
+  DATABASE_URL: postgresql://lexassist:lexassist@127.0.0.1:54329/lexassist_test
+  REDIS_URL: redis://127.0.0.1:63799
+  PORT: "8080"
+  APP_ENV: test
+  REQUIRE_REDIS: "1"
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: LexAssist-3/pnpm-lock.yaml
+      - name: Start Postgres + Redis
+        run: docker compose -f docker-compose.test.yml up -d --wait
+      - run: pnpm install --frozen-lockfile
+      - name: Start API
+        run: |
+          node --import tsx artifacts/api-server/src/lexassist/index.ts &
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:8080/api/healthz && break
+            sleep 1
+          done
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E52627
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+      - name: G9 k6 smoke
+        run: API_BASE=http://127.0.0.1:8080 k6 run tests/load/smoke.js

@@ -33,7 +33,7 @@ import {
   ArrowRight,
   Info,
 } from "lucide-react";
-import { apiRequest, queryClient, getAuthToken } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { EnquiriesLibraryItem, EnquiryPackItem, EnquiriesBuilderPack, Matter } from "@shared/schema";
 import { ENQUIRY_CATEGORIES } from "@shared/schema";
@@ -86,7 +86,7 @@ export default function EnquiriesBuilder({ matter, matterId }: EnquiriesBuilderP
     queryKey: ["/api/matters", matterId, "builder-packs"],
     queryFn: async () => {
       const res = await fetch(`/api/matters/${matterId}/builder-packs`, {
-        headers: { Authorization: `Bearer ${getAuthToken()}` },
+        credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to fetch packs");
       return res.json();
@@ -180,12 +180,11 @@ export default function EnquiriesBuilder({ matter, matterId }: EnquiriesBuilderP
 
   const exportMutation = useMutation({
     mutationFn: async (packId: number) => {
-      const token = getAuthToken();
       const res = await fetch(`/api/builder-packs/${packId}/export`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
       if (!res.ok) throw new Error("Export failed");

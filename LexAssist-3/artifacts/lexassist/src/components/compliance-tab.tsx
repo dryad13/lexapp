@@ -10,7 +10,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
 import type { ControlCheck } from "@shared/schema";
-import { WORKFLOW_STAGES, IMMIGRATION_WORKFLOW_STAGES } from "@shared/schema";
+import { WORKFLOW_STAGES, IMMIGRATION_WORKFLOW_STAGES, isImmigrationMatterType } from "@shared/schema";
 import RiskAssessmentForm from "./risk-assessment-form";
 
 interface ComplianceTabProps {
@@ -68,9 +68,7 @@ export default function ComplianceTab({ matterId, currentStage, matterData }: Co
   }
 
   const uniqueStages = [...new Set(checks.map(c => c.stage))];
-  const isImmigrationMatter = matterData?.type
-    ? ["visa_application", "asylum", "appeal", "settlement", "naturalisation"].includes(matterData.type)
-    : false;
+  const isImmigrationMatter = matterData?.type ? isImmigrationMatterType(matterData.type) : false;
   const stageOrder = isImmigrationMatter ? IMMIGRATION_WORKFLOW_STAGES : WORKFLOW_STAGES;
   const stages = uniqueStages.sort((a, b) => {
     const ai = stageOrder.indexOf(a as any);

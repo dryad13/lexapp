@@ -4,10 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Lock, User, Scale } from "lucide-react";
-import { setAuthToken } from "@/lib/queryClient";
-
 interface LoginProps {
-  onLogin: (data: { username: string; token: string; role: string; organisationId: number; displayName: string; department?: string }) => void;
+  onLogin: (data: { username: string; role: string; organisationId: number; displayName: string; department?: string }) => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
@@ -24,16 +22,13 @@ export default function Login({ onLogin }: LoginProps) {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ username, password }),
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.token) {
-          setAuthToken(data.token);
-        }
         onLogin({
           username: data.username,
-          token: data.token,
           role: data.role || "read_only",
           organisationId: data.organisationId || 0,
           displayName: data.displayName || data.username,

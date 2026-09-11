@@ -267,7 +267,122 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS risk_assessments_matter_idx ON risk_assessments(matter_id);
     CREATE INDEX IF NOT EXISTS risk_assessments_org_idx ON risk_assessments(organisation_id);
     CREATE UNIQUE INDEX IF NOT EXISTS risk_assessments_matter_org_idx ON risk_assessments(matter_id, organisation_id);
+
+    ALTER TABLE organisations ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+    ALTER TABLE organisations ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
+    ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS organisation_id INTEGER REFERENCES organisations(id);
+    CREATE INDEX IF NOT EXISTS audit_logs_org_idx ON audit_logs(organisation_id);
+
+    CREATE TABLE IF NOT EXISTS processed_stripe_events (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      payload_json JSONB NOT NULL DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'received',
+      error TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+    );
   `);
 
+  await applyTenantRls(pool);
+
   await pool.end();
+}
+
+const RLS_BYPASS = `current_setting('app.rls_bypass', true) = 'on'`;
+const RLS_ORG = `NULLIF(current_setting('app.current_org_id', true), '')::integer`;
+
+async function applyTenantRls(pool: pg.Pool) {
+  const orgPolicy = (table: string) => `
+    ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS ${table}_tenant ON ${table};
+    CREATE POLICY ${table}_tenant ON ${table}
+      USING (
+        ${RLS_BYPASS}
+        OR (organisation_id IS NOT NULL AND organisation_id = ${RLS_ORG})
+      )
+      WITH CHECK (
+        ${RLS_BYPASS}
+        OR (organisation_id IS NOT NULL AND organisation_id = ${RLS_ORG})
+      );
+  `;
+
+  const matterChildPolicy = (table: string, matterCol = "matter_id") => `
+    ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS ${table}_tenant ON ${table};
+    CREATE POLICY ${table}_tenant ON ${table}
+      USING (
+        ${RLS_BYPASS}
+        OR ${table}.${matterCol} IS NULL
+        OR EXISTS (
+          SELECT 1 FROM matters m
+          WHERE m.id = ${table}.${matterCol}
+            AND m.organisation_id IS NOT NULL
+            AND m.organisation_id = ${RLS_ORG}
+        )
+      )
+      WITH CHECK (
+        ${RLS_BYPASS}
+        OR ${table}.${matterCol} IS NULL
+        OR EXISTS (
+          SELECT 1 FROM matters m
+          WHERE m.id = ${table}.${matterCol}
+            AND m.organisation_id IS NOT NULL
+            AND m.organisation_id = ${RLS_ORG}
+        )
+      );
+  `;
+
+  // Residual risk (no organisation_id this round): conversations, messages,
+  // knowledge_resources, enquiries_library, journal_entries, time_entries, rule_templates.
+  await pool.query(`
+    ${orgPolicy("users")}
+    ${orgPolicy("matters")}
+    ${orgPolicy("control_checks")}
+    ${orgPolicy("risk_assessments")}
+    ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE audit_logs FORCE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS audit_logs_tenant ON audit_logs;
+    CREATE POLICY audit_logs_tenant ON audit_logs
+      USING (
+        ${RLS_BYPASS}
+        OR (organisation_id IS NOT NULL AND organisation_id = ${RLS_ORG})
+        OR (
+          organisation_id IS NULL
+          AND matter_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM matters m
+            WHERE m.id = audit_logs.matter_id
+              AND m.organisation_id IS NOT NULL
+              AND m.organisation_id = ${RLS_ORG}
+          )
+        )
+      )
+      WITH CHECK (
+        ${RLS_BYPASS}
+        OR (organisation_id IS NOT NULL AND organisation_id = ${RLS_ORG})
+        OR (
+          organisation_id IS NULL
+          AND (
+            matter_id IS NULL
+            OR EXISTS (
+              SELECT 1 FROM matters m
+              WHERE m.id = audit_logs.matter_id
+                AND m.organisation_id IS NOT NULL
+                AND m.organisation_id = ${RLS_ORG}
+            )
+          )
+        )
+      );
+    ${matterChildPolicy("tasks")}
+    ${matterChildPolicy("draft_emails")}
+    ${matterChildPolicy("reminders")}
+    ${matterChildPolicy("documents")}
+    ${matterChildPolicy("enquiry_packs")}
+    ${matterChildPolicy("enquiries_builder_packs")}
+    ${matterChildPolicy("financial_items")}
+    ${matterChildPolicy("matter_financials")}
+  `);
 }

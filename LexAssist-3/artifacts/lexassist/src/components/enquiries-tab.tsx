@@ -36,7 +36,7 @@ import {
   Shield,
   Clock,
 } from "lucide-react";
-import { apiRequest, queryClient, getAuthToken } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Matter, Document as MatterDoc, EnquiryPack } from "@shared/schema";
 import { DOCUMENT_TYPES } from "@shared/schema";
@@ -85,13 +85,10 @@ export default function EnquiriesTab({ matter, matterId }: EnquiriesTabProps) {
 
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
-      const token = getAuthToken();
-      const headers: Record<string, string> = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
       const res = await fetch(`/api/matters/${matterId}/documents`, {
         method: "POST",
         body: formData,
-        headers,
+        credentials: "include",
       });
       if (!res.ok) throw new Error("Upload failed");
       return res.json();

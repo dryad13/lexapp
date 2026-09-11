@@ -37,7 +37,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
 import type { Matter, DraftEmail, Reminder, MatterType } from "@shared/schema";
-import { WORKFLOW_STAGES, IMMIGRATION_MATTER_TYPES, getImmigrationWorkflowStages } from "@shared/schema";
+import { WORKFLOW_STAGES, IMMIGRATION_MATTER_TYPES, getImmigrationWorkflowStages, getPracticeArea } from "@shared/schema";
 import { format } from "date-fns";
 
 interface ComplianceItem {
@@ -49,12 +49,13 @@ interface ComplianceItem {
 
 export default function Dashboard() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [practiceArea, setPracticeArea] = useState<"conveyancing" | "immigration" | "">("");
   const [formType, setFormType] = useState("");
   const { toast } = useToast();
   const { hasPermission, department } = useAuth();
   const showConveyancing = department === "conveyancing" || department === "both";
   const showImmigration = department === "immigration" || department === "both";
-  const isImmigrationOnly = showImmigration && !showConveyancing;
+  const isImmigrationForm = practiceArea === "immigration";
 
   const { data: matters, isLoading: mattersLoading } = useQuery<Matter[]>({
     queryKey: ["/api/matters"],
@@ -77,6 +78,7 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/matters"] });
       setDialogOpen(false);
+      setPracticeArea("");
       setFormType("");
       toast({ title: "Matter created", description: "New matter has been created with workflow tasks." });
     },
@@ -87,8 +89,12 @@ export default function Dashboard() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!practiceArea) {
+      toast({ title: "Error", description: "Please select a practice area", variant: "destructive" });
+      return;
+    }
     if (!formType) {
-      toast({ title: "Error", description: "Please select a transaction type", variant: "destructive" });
+      toast({ title: "Error", description: "Please select a matter type", variant: "destructive" });
       return;
     }
     const formData = new FormData(e.currentTarget);
@@ -107,11 +113,29 @@ export default function Dashboard() {
   };
 
   const getNextStage = (matter: Matter): string | null => {
+    if ((IMMIGRATION_MATTER_TYPES as readonly string[]).includes(matter.type)) {
+      const stages = getImmigrationWorkflowStages(matter.type);
+      const idx = stages.indexOf(matter.currentStage as any);
+      if (idx >= 0 && idx < stages.length - 1) return stages[idx + 1];
+      return null;
+    }
     const stages = WORKFLOW_STAGES[matter.type as MatterType];
     if (!stages) return null;
     const idx = stages.indexOf(matter.currentStage as any);
     if (idx >= 0 && idx < stages.length - 1) return stages[idx + 1];
     return null;
+  };
+
+  const resetCreateDialog = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      setPracticeArea("");
+      setFormType("");
+    } else if (showImmigration && !showConveyancing) {
+      setPracticeArea("immigration");
+    } else if (showConveyancing && !showImmigration) {
+      setPracticeArea("conveyancing");
+    }
   };
 
   const activeMatters = matters?.filter((m) => m.status === "active") || [];
@@ -163,12 +187,12 @@ export default function Dashboard() {
             Dashboard
           </h1>
           <p className="text-muted-foreground">
-            Your conveyancing workflow at a glance
+            Your legal matters at a glance
           </p>
         </div>
 
         {hasPermission("canCreateMatters") && (
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setFormType(""); }}>
+        <Dialog open={dialogOpen} onOpenChange={resetCreateDialog}>
           <DialogTrigger asChild>
             <Button data-testid="button-dashboard-new-matter">
               <Plus className="h-4 w-4 mr-2" />
@@ -178,38 +202,58 @@ export default function Dashboard() {
           <DialogContent className="glass sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Create New Matter</DialogTitle>
-              <DialogDescription>{isImmigrationOnly ? "Add a new immigration case" : "Add a new matter to your caseload"}</DialogDescription>
+              <DialogDescription>Choose a practice area, then the matter type</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="d-title">Matter Title</Label>
-                <Input id="d-title" name="title" placeholder={isImmigrationOnly ? "e.g., Skilled Worker Visa — John Smith" : "e.g., Sale of 10 High Street"} required data-testid="input-dashboard-matter-title" />
-              </div>
-              <div className="space-y-2">
-                <Label>{isImmigrationOnly ? "Case Type" : "Transaction Type"}</Label>
-                <Select value={formType} onValueChange={setFormType}>
-                  <SelectTrigger data-testid="select-dashboard-matter-type">
-                    <SelectValue placeholder="Select type" />
+                <Label>Practice Area</Label>
+                <Select
+                  value={practiceArea}
+                  onValueChange={(v) => {
+                    setPracticeArea(v as "conveyancing" | "immigration");
+                    setFormType("");
+                  }}
+                >
+                  <SelectTrigger data-testid="select-dashboard-practice-area">
+                    <SelectValue placeholder="Select practice area" />
                   </SelectTrigger>
                   <SelectContent>
-                    {showConveyancing && (
-                      <>
-                        <SelectItem value="sale">Sale</SelectItem>
-                        <SelectItem value="purchase">Purchase</SelectItem>
-                        <SelectItem value="remortgage">Remortgage</SelectItem>
-                      </>
-                    )}
-                    {showImmigration && (
-                      <>
-                        <SelectItem value="visa_application">Visa Application</SelectItem>
-                        <SelectItem value="asylum">Asylum</SelectItem>
-                        <SelectItem value="appeal">Appeal</SelectItem>
-                        <SelectItem value="settlement">Settlement</SelectItem>
-                        <SelectItem value="naturalisation">Naturalisation</SelectItem>
-                      </>
-                    )}
+                    {showConveyancing && <SelectItem value="conveyancing">Conveyancing</SelectItem>}
+                    {showImmigration && <SelectItem value="immigration">Immigration</SelectItem>}
                   </SelectContent>
                 </Select>
+              </div>
+              {practiceArea && (
+                <div className="space-y-2">
+                  <Label>{isImmigrationForm ? "Case Type" : "Transaction Type"}</Label>
+                  <Select value={formType} onValueChange={setFormType}>
+                    <SelectTrigger data-testid="select-dashboard-matter-type">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {practiceArea === "conveyancing" && (
+                        <>
+                          <SelectItem value="sale">Sale</SelectItem>
+                          <SelectItem value="purchase">Purchase</SelectItem>
+                          <SelectItem value="remortgage">Remortgage</SelectItem>
+                        </>
+                      )}
+                      {practiceArea === "immigration" && (
+                        <>
+                          <SelectItem value="visa_application">Visa Application</SelectItem>
+                          <SelectItem value="asylum">Asylum</SelectItem>
+                          <SelectItem value="appeal">Appeal</SelectItem>
+                          <SelectItem value="settlement">Settlement</SelectItem>
+                          <SelectItem value="naturalisation">Naturalisation</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="d-title">Matter Title</Label>
+                <Input id="d-title" name="title" placeholder={isImmigrationForm ? "e.g., Skilled Worker Visa — John Smith" : "e.g., Sale of 10 High Street"} required data-testid="input-dashboard-matter-title" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="d-clientName">Client Name</Label>
@@ -220,14 +264,14 @@ export default function Dashboard() {
                 <Input id="d-clientEmail" name="clientEmail" type="email" placeholder="email@example.com" data-testid="input-dashboard-client-email" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="d-propertyAddress">{isImmigrationOnly ? "Client Address" : "Property Address"}</Label>
-                <Textarea id="d-propertyAddress" name="propertyAddress" placeholder={isImmigrationOnly ? "Client address" : "Full property address"} required data-testid="input-dashboard-property-address" />
+                <Label htmlFor="d-propertyAddress">{isImmigrationForm ? "Client Address" : "Property Address"}</Label>
+                <Textarea id="d-propertyAddress" name="propertyAddress" placeholder={isImmigrationForm ? "Client address" : "Full property address"} required data-testid="input-dashboard-property-address" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="d-price">{isImmigrationOnly ? "Fee Quote" : "Price"}</Label>
-                <Input id="d-price" name="price" placeholder={isImmigrationOnly ? "e.g., 2,500" : "e.g., 350,000"} data-testid="input-dashboard-price" />
+                <Label htmlFor="d-price">{isImmigrationForm ? "Fee Quote" : "Price"}</Label>
+                <Input id="d-price" name="price" placeholder={isImmigrationForm ? "e.g., 2,500" : "e.g., 350,000"} data-testid="input-dashboard-price" />
               </div>
-              <Button type="submit" className="w-full" disabled={createMutation.isPending} data-testid="button-dashboard-submit-matter">
+              <Button type="submit" className="w-full" disabled={createMutation.isPending || !practiceArea || !formType} data-testid="button-dashboard-submit-matter">
                 {createMutation.isPending ? "Creating..." : "Create Matter"}
               </Button>
             </form>
@@ -238,7 +282,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (
-          <Link href={stat.href} key={stat.label}>
+          <Link href={stat.href} key={stat.label} aria-label={stat.label}>
             <Card className="glass-card rounded-md hover-elevate cursor-pointer">
               <CardContent className="p-5">
                 {isLoading ? (
@@ -252,7 +296,7 @@ export default function Dashboard() {
                       </p>
                     </div>
                     <div className={`p-2.5 rounded-md ${stat.bg}`}>
-                      <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                      <stat.icon className={`h-4 w-4 ${stat.color}`} aria-hidden="true" />
                     </div>
                   </div>
                 )}
@@ -299,11 +343,11 @@ export default function Dashboard() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <Badge variant="secondary" className="text-xs capitalize">
-                            {matter.type}
+                          <Badge variant="secondary" className="text-xs">
+                            {getPracticeArea(matter.type) === "immigration" ? "Immigration" : "Conveyancing"}
                           </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {matter.currentStage}
+                          <Badge variant="outline" className="text-xs capitalize">
+                            {matter.type.replace(/_/g, " ")}
                           </Badge>
                         </div>
                       </div>

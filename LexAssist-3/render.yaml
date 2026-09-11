@@ -20,6 +20,23 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      # Set in the Render dashboard (no Terraform in this round):
+      # REDIS_URL, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID, DATABASE_SSL=true
+      # Redis is not provisioned yet. While REQUIRE_REDIS is "0" the service
+      # degrades to in-memory sessions, rate limiting and job queues instead of
+      # exiting at boot. Flip to "1" once REDIS_URL points at a real instance.
+      - key: REQUIRE_REDIS
+        value: "0"
+      - key: REDIS_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_ID
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
 
 databases:
   - name: lexassist3-db

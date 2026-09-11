@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Bot, Send, User, Sparkles } from "lucide-react";
-import { getAuthToken } from "@/lib/queryClient";
 
 type Message = {
   role: "user" | "assistant";
@@ -45,12 +44,10 @@ export default function AIAssistant() {
     setMessages((prev) => [...prev, assistantMessage]);
 
     try {
-      const token = getAuthToken();
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
       const response = await fetch("/api/ai/suggest", {
         method: "POST",
-        headers,
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: text }),
       });
 

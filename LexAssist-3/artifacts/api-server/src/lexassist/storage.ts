@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { matters, tasks, draftEmails, reminders, journalEntries, timeEntries, documents, enquiryPacks, auditLogs, knowledgeResources, enquiriesLibrary, enquiriesBuilderPacks, financialItems, matterFinancials, WORKFLOW_STAGES, IMMIGRATION_WORKFLOW_STAGES, getImmigrationWorkflowStages, organisations, users, controlChecks, ruleTemplates, riskAssessments } from "../shared/schema";
+import { matters, tasks, draftEmails, reminders, journalEntries, timeEntries, documents, enquiryPacks, auditLogs, knowledgeResources, enquiriesLibrary, enquiriesBuilderPacks, financialItems, matterFinancials, WORKFLOW_STAGES, getImmigrationWorkflowStages, isImmigrationMatterType, organisations, users, controlChecks, ruleTemplates, riskAssessments } from "../shared/schema";
 import type { Matter, InsertMatter, Task, InsertTask, DraftEmail, InsertDraftEmail, Reminder, InsertReminder, JournalEntry, InsertJournalEntry, TimeEntry, InsertTimeEntry, MatterType, Document, InsertDocument, EnquiryPack, InsertEnquiryPack, AuditLog, InsertAuditLog, KnowledgeResource, InsertKnowledgeResource, EnquiriesLibraryItem, InsertEnquiriesLibraryItem, EnquiriesBuilderPack, InsertEnquiriesBuilderPack, FinancialItem, InsertFinancialItem, MatterFinancials, InsertMatterFinancials, Organisation, InsertOrganisation, User, InsertUser, ControlCheck, InsertControlCheck, RuleTemplate, RiskAssessment } from "../shared/schema";
 import { eq, desc, and, sql, isNull, gte, lte } from "drizzle-orm";
 import { encrypt, decrypt, isEncrypted } from "./encryption";
@@ -139,7 +139,12 @@ export interface IStorage {
   completeControlCheck(id: number, userId: number): Promise<ControlCheck | undefined>;
   uncompleteControlCheck(id: number): Promise<ControlCheck | undefined>;
   seedControlChecksForMatter(matterId: number, organisationId: number, matterType: string): Promise<ControlCheck[]>;
-  validateStageProgression(matterId: number, currentStage: string): Promise<{ canProgress: boolean; missingChecks: string[] }>;
+  validateStageProgression(matterId: number, currentStage: string): Promise<{
+    canProgress: boolean;
+    missingChecks: { id: number; ruleKey: string | null; ruleName: string }[];
+  }>;
+  /** Immigration Onboarding / Induction: block progression until AML check is complete. */
+  validateImmigrationInductionAmlGate(matterId: number): Promise<{ canProgress: boolean; missingChecks: { id: number; ruleKey: string | null; ruleName: string }[] }>;
   getComplianceSummary(organisationId: number): Promise<{ matterId: number; matterTitle: string; stage: string; requiredIncomplete: number }[]>;
 
   getRuleTemplates(matterType?: string): Promise<RuleTemplate[]>;
@@ -215,7 +220,13 @@ class DatabaseStorage implements IStorage {
 
   async updateMatter(id: number, data: Partial<InsertMatter> & { lastViewedAt?: Date }): Promise<Matter | undefined> {
     const encrypted = encryptMatter(data as any);
-    const [matter] = await db.update(matters).set(encrypted).where(eq(matters.id, id)).returning();
+    const cleaned = Object.fromEntries(
+      Object.entries(encrypted).filter(([, value]) => value !== undefined),
+    );
+    if (Object.keys(cleaned).length === 0) {
+      return this.getMatter(id);
+    }
+    const [matter] = await db.update(matters).set(cleaned as any).where(eq(matters.id, id)).returning();
     return matter ? decryptMatter(matter) : undefined;
   }
 
@@ -603,8 +614,9 @@ class DatabaseStorage implements IStorage {
   }
 
   async seedControlChecksForMatter(matterId: number, organisationId: number, matterType: string): Promise<ControlCheck[]> {
+    const moduleType = isImmigrationMatterType(matterType) ? "immigration" : "conveyancing";
     const templates = await db.select().from(ruleTemplates)
-      .where(and(eq(ruleTemplates.moduleType, "conveyancing"), eq(ruleTemplates.matterType, matterType)));
+      .where(and(eq(ruleTemplates.moduleType, moduleType), eq(ruleTemplates.matterType, matterType)));
 
     const created: ControlCheck[] = [];
     for (const template of templates) {
@@ -637,6 +649,29 @@ class DatabaseStorage implements IStorage {
     return {
       canProgress: checks.length === 0,
       missingChecks: checks.map(c => ({ id: c.id, ruleKey: c.ruleKey, ruleName: c.ruleName })),
+    };
+  }
+
+  /** Gate leaving Onboarding / Induction until Client ID / AML check is complete. */
+  async validateImmigrationInductionAmlGate(matterId: number): Promise<{
+    canProgress: boolean;
+    missingChecks: { id: number; ruleKey: string | null; ruleName: string }[];
+  }> {
+    const checks = await db.select().from(controlChecks)
+      .where(and(
+        eq(controlChecks.matterId, matterId),
+        eq(controlChecks.stage, "Onboarding / Induction"),
+        eq(controlChecks.completed, false),
+      ));
+
+    const amlMissing = checks.filter((c) =>
+      (c.ruleKey && c.ruleKey.startsWith("IMM_OB_02")) ||
+      /AML/i.test(c.ruleName || ""),
+    );
+
+    return {
+      canProgress: amlMissing.length === 0,
+      missingChecks: amlMissing.map(c => ({ id: c.id, ruleKey: c.ruleKey, ruleName: c.ruleName })),
     };
   }
 

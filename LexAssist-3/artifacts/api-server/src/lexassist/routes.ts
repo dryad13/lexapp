@@ -1,10 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMatterSchema, insertDraftEmailSchema, insertReminderSchema, insertJournalEntrySchema, insertTimeEntrySchema, WORKFLOW_STAGES, IMMIGRATION_WORKFLOW_STAGES, IMMIGRATION_MATTER_TYPES, DOCUMENT_TYPES, ROLE_PERMISSIONS } from "../shared/schema";
+import { insertMatterSchema, insertDraftEmailSchema, insertReminderSchema, insertJournalEntrySchema, insertTimeEntrySchema, WORKFLOW_STAGES, IMMIGRATION_WORKFLOW_STAGES, IMMIGRATION_MATTER_TYPES, DOCUMENT_TYPES, ROLE_PERMISSIONS, isImmigrationMatterType } from "../shared/schema";
 import type { MatterType, EnquiryPackItem, UserRole } from "../shared/schema";
 import { registerChatRoutes } from "./replit_integrations/chat";
-import { requireRole, requirePermission } from "./index";
+import { requirePermission } from "./auth-guards";
+import { registerBillingRoutes } from "./stripe-billing";
+import { enqueuePdfJob, waitForTestJob, getPdfResult, pdfQueue } from "./queues";
 import OpenAI from "openai";
 import multer from "multer";
 import path from "path";
@@ -68,40 +70,8 @@ function getUserRole(req: any): UserRole {
 async function verifyMatterAccess(req: any, matterId: number) {
   const matter = await storage.getMatter(matterId);
   if (!matter) return null;
-  if (matter.organisationId && matter.organisationId !== getOrgId(req)) return null;
+  if (matter.organisationId == null || matter.organisationId !== getOrgId(req)) return null;
   return matter;
-}
-
-function renderHeader(doc: any, username: string, label: string) {
-  doc.fontSize(18).fillColor("#111").text("Reflective Learning Journal", { align: "left" });
-  doc.moveDown(0.2);
-  doc.fontSize(10).fillColor("#666").text(`${username}  ·  ${label}  ·  Generated ${new Date().toLocaleString("en-GB")}`);
-  doc.moveDown(0.5);
-  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor("#ddd").stroke();
-  doc.moveDown(0.8);
-}
-
-function renderEntry(doc: any, entry: any) {
-  if (doc.y > 720) doc.addPage();
-  const date = entry.entryDate ? new Date(entry.entryDate) : new Date(entry.createdAt);
-  doc.fontSize(13).fillColor("#111").text(entry.title || "(untitled)", { continued: false });
-  doc.fontSize(9).fillColor("#888").text(`${date.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}  ·  ${entry.category || "general"}`);
-  doc.moveDown(0.4);
-  const section = (label: string, body: string | null) => {
-    if (!body) return;
-    doc.fontSize(10).fillColor("#444").text(label, { continued: false });
-    doc.fontSize(10).fillColor("#222").text(body, { paragraphGap: 4 });
-    doc.moveDown(0.3);
-  };
-  section("Activity", entry.activity);
-  section("Learning", entry.learning);
-  section("Reflection", entry.reflection);
-  if (!entry.activity && !entry.learning && !entry.reflection && entry.content) {
-    section("Notes", entry.content);
-  }
-  doc.moveDown(0.4);
-  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor("#eee").stroke();
-  doc.moveDown(0.6);
 }
 
 export async function registerRoutes(
@@ -122,7 +92,7 @@ export async function registerRoutes(
 
   app.get("/api/matters/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       let matter = await verifyMatterAccess(req, id);
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       const updated = await storage.updateMatter(id, { lastViewedAt: new Date() } as any);
@@ -160,6 +130,7 @@ export async function registerRoutes(
       const matter = await storage.createMatter(data);
       if (isImmigration) {
         await storage.createImmigrationTasks(matter.id, matterType);
+        await storage.seedControlChecksForMatter(matter.id, orgId, matterType);
       } else {
         await storage.createDefaultTasks(matter.id, matterType);
         await storage.seedControlChecksForMatter(matter.id, orgId, matterType);
@@ -173,41 +144,53 @@ export async function registerRoutes(
 
   app.patch("/api/matters/:id", requirePermission("canEditMatters"), async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const existingMatter = await verifyMatterAccess(req, id);
       if (!existingMatter) return res.status(404).json({ error: "Matter not found" });
 
       if (req.body.currentStage && req.body.currentStage !== existingMatter.currentStage) {
-        const validation = await storage.validateStageProgression(id, existingMatter.currentStage);
-        if (!validation.canProgress) {
-          const override = req.body.override === true;
-          const overrideReason = req.body.overrideReason;
+        const isImmigrationMatter = isImmigrationMatterType(existingMatter.type);
+        // Immigration: AML gate only when leaving Onboarding / Induction; other stages ungated for now.
+        // Conveyancing: full required-check gating unchanged.
+        const shouldGate =
+          !isImmigrationMatter ||
+          existingMatter.currentStage === "Onboarding / Induction";
 
-          if (!override) {
-            return res.status(409).json({
-              error: "COMPLIANCE_BLOCKED",
-              current_stage: existingMatter.currentStage,
-              attempted_stage: req.body.currentStage,
-              missing_checks: validation.missingChecks,
+        if (shouldGate) {
+          const validation = isImmigrationMatter
+            ? await storage.validateImmigrationInductionAmlGate(id)
+            : await storage.validateStageProgression(id, existingMatter.currentStage);
+
+          if (!validation.canProgress) {
+            const override = req.body.override === true;
+            const overrideReason = req.body.overrideReason;
+
+            if (!override) {
+              return res.status(409).json({
+                error: "COMPLIANCE_BLOCKED",
+                current_stage: existingMatter.currentStage,
+                attempted_stage: req.body.currentStage,
+                missing_checks: validation.missingChecks,
+              });
+            }
+
+            const role = getUserRole(req);
+            if (!ROLE_PERMISSIONS[role]?.canOverrideGating) {
+              return res.status(403).json({ error: "Only admin or fee_earner can override stage gating" });
+            }
+            if (!overrideReason || typeof overrideReason !== "string" || overrideReason.trim().length < 10) {
+              return res.status(400).json({ error: "Override reason must be at least 10 characters" });
+            }
+
+            await storage.createAuditLog({
+              matterId: id,
+              entityType: "matter",
+              entityId: id,
+              action: "STAGE_OVERRIDE",
+              details: `Stage override from "${existingMatter.currentStage}" to "${req.body.currentStage}". Reason: ${overrideReason.trim()}. Missing checks: ${validation.missingChecks.map(c => c.ruleName).join(", ")}`,
+              performedBy: getUsername(req),
             });
           }
-
-          const role = getUserRole(req);
-          if (!ROLE_PERMISSIONS[role]?.canOverrideGating) {
-            return res.status(403).json({ error: "Only admin or fee_earner can override stage gating" });
-          }
-          if (!overrideReason || typeof overrideReason !== "string" || overrideReason.trim().length < 10) {
-            return res.status(400).json({ error: "Override reason must be at least 10 characters" });
-          }
-
-          await storage.createAuditLog({
-            matterId: id,
-            entityType: "matter",
-            entityId: id,
-            action: "STAGE_OVERRIDE",
-            details: `Stage override from "${existingMatter.currentStage}" to "${req.body.currentStage}". Reason: ${overrideReason.trim()}. Missing checks: ${validation.missingChecks.map(c => c.ruleName).join(", ")}`,
-            performedBy: getUsername(req),
-          });
         }
       }
 
@@ -270,7 +253,7 @@ export async function registerRoutes(
 
   app.delete("/api/matters/:id", requirePermission("canDeleteMatters"), async (req, res) => {
     try {
-      const matter = await verifyMatterAccess(req, parseInt(req.params.id));
+      const matter = await verifyMatterAccess(req, parseInt(String(req.params.id)));
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       await storage.deleteMatter(matter.id);
       res.status(204).send();
@@ -281,7 +264,7 @@ export async function registerRoutes(
 
   app.get("/api/matters/:id/tasks", async (req, res) => {
     try {
-      const matter = await verifyMatterAccess(req, parseInt(req.params.id));
+      const matter = await verifyMatterAccess(req, parseInt(String(req.params.id)));
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       const matterTasks = await storage.getTasksByMatter(matter.id);
       res.json(matterTasks);
@@ -292,7 +275,7 @@ export async function registerRoutes(
 
   app.patch("/api/tasks/:id", requirePermission("canEditMatters"), async (req, res) => {
     try {
-      const task = await storage.getTask(parseInt(req.params.id));
+      const task = await storage.getTask(parseInt(String(req.params.id)));
       if (!task) return res.status(404).json({ error: "Task not found" });
       const matter = await verifyMatterAccess(req, task.matterId);
       if (!matter) return res.status(404).json({ error: "Task not found" });
@@ -309,7 +292,7 @@ export async function registerRoutes(
 
   app.post("/api/tasks/:id/complete", requirePermission("canProgressStages"), async (req, res) => {
     try {
-      const task = await storage.getTask(parseInt(req.params.id));
+      const task = await storage.getTask(parseInt(String(req.params.id)));
       if (!task) return res.status(404).json({ error: "Task not found" });
       const matter = await verifyMatterAccess(req, task.matterId);
       if (!matter) return res.status(404).json({ error: "Task not found" });
@@ -351,7 +334,7 @@ export async function registerRoutes(
 
   app.patch("/api/draft-emails/:id", async (req, res) => {
     try {
-      const email = await storage.getDraftEmail(parseInt(req.params.id));
+      const email = await storage.getDraftEmail(parseInt(String(req.params.id)));
       if (!email) return res.status(404).json({ error: "Draft email not found" });
       if (email.matterId) {
         const matter = await verifyMatterAccess(req, email.matterId);
@@ -367,7 +350,7 @@ export async function registerRoutes(
 
   app.delete("/api/draft-emails/:id", async (req, res) => {
     try {
-      const email = await storage.getDraftEmail(parseInt(req.params.id));
+      const email = await storage.getDraftEmail(parseInt(String(req.params.id)));
       if (!email) return res.status(404).json({ error: "Draft email not found" });
       if (email.matterId) {
         const matter = await verifyMatterAccess(req, email.matterId);
@@ -412,7 +395,7 @@ export async function registerRoutes(
 
   app.patch("/api/reminders/:id", async (req, res) => {
     try {
-      const reminder = await storage.getReminder(parseInt(req.params.id));
+      const reminder = await storage.getReminder(parseInt(String(req.params.id)));
       if (!reminder) return res.status(404).json({ error: "Reminder not found" });
       if (reminder.matterId) {
         const matter = await verifyMatterAccess(req, reminder.matterId);
@@ -430,13 +413,13 @@ export async function registerRoutes(
 
   app.post("/api/reminders/:id/complete", async (req, res) => {
     try {
-      const reminder = await storage.getReminder(parseInt(req.params.id));
+      const reminder = await storage.getReminder(parseInt(String(req.params.id)));
       if (!reminder) return res.status(404).json({ error: "Reminder not found" });
       if (reminder.matterId) {
         const matter = await verifyMatterAccess(req, reminder.matterId);
         if (!matter) return res.status(404).json({ error: "Reminder not found" });
       }
-      const reminder2 = await storage.completeReminder(parseInt(req.params.id));
+      const reminder2 = await storage.completeReminder(parseInt(String(req.params.id)));
       if (!reminder) return res.status(404).json({ error: "Reminder not found" });
       res.json(reminder);
     } catch (error) {
@@ -446,7 +429,7 @@ export async function registerRoutes(
 
   app.delete("/api/reminders/:id", async (req, res) => {
     try {
-      await storage.deleteReminder(parseInt(req.params.id));
+      await storage.deleteReminder(parseInt(String(req.params.id)));
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete reminder" });
@@ -496,65 +479,81 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/journal-entries/export", async (req, res) => {
+  async function enqueueJournalPdf(req: any, res: any) {
     try {
       const userId = getUserId(req);
       const username = getUsername(req);
-      const scope = String(req.query.scope || "range");
-      let from: Date, to: Date, label: string;
-
+      const q = { ...req.query, ...(req.body || {}) };
+      const scope = String(q.scope || "range");
       if (scope === "single") {
-        const id = parseInt(String(req.query.id));
+        const id = parseInt(String(q.id));
         const entry = await storage.getJournalEntry(id, userId);
         if (!entry) return res.status(404).json({ error: "Not found" });
-        const pdfMod: any = await import("pdfkit");
-        const PDFDocument = pdfMod.default || pdfMod;
-        const doc = new PDFDocument({ size: "A4", margin: 50 });
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", `attachment; filename="journal-entry-${id}.pdf"`);
-        doc.pipe(res);
-        renderHeader(doc, username, "Single Entry");
-        renderEntry(doc, entry);
-        doc.end();
-        return;
       }
-
-      const fmtUK = (d: Date) => `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
-      let filename: string;
-      if (scope === "week") {
-        const weekStart = new Date(String(req.query.from));
-        from = weekStart;
-        const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
-        to = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
-        label = `${fmtUK(from)} to ${fmtUK(weekEnd)}`;
-        filename = `Journal Entry - ${label}.pdf`;
-      } else {
-        from = new Date(String(req.query.from));
-        to = new Date(String(req.query.to));
-        to.setHours(23, 59, 59, 999);
-        label = `${fmtUK(from)} to ${fmtUK(to)}`;
-        filename = `Journal Entry - ${label}.pdf`;
-      }
-
-      const entries = await storage.getJournalEntriesInRange(userId, from, to);
-      const pdfMod: any = await import("pdfkit");
-      const PDFDocument = pdfMod.default || pdfMod;
-      const doc = new PDFDocument({ size: "A4", margin: 50 });
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-      doc.pipe(res);
-      renderHeader(doc, username, label);
-      if (entries.length === 0) {
-        doc.fontSize(11).fillColor("#666").text("No entries in this period.");
-      } else {
-        for (const e of entries) {
-          renderEntry(doc, e);
-        }
-      }
-      doc.end();
+      const job = await enqueuePdfJob({
+        kind: "journal",
+        userId,
+        organisationId: getOrgId(req),
+        username,
+        scope,
+        entryId: q.id != null ? parseInt(String(q.id)) : undefined,
+        from: q.from != null ? String(q.from) : undefined,
+        to: q.to != null ? String(q.to) : undefined,
+      });
+      await waitForTestJob(job);
+      return res.status(202).json({ jobId: job.id });
     } catch (error: any) {
       console.error("PDF export error:", error);
       if (!res.headersSent) res.status(500).json({ error: error.message || "Export failed" });
+    }
+  }
+
+  app.post("/api/journal-entries/export", enqueueJournalPdf);
+  app.get("/api/journal-entries/export", enqueueJournalPdf);
+
+  app.post("/api/matters/:id/export-pdf", async (req, res) => {
+    try {
+      const matter = await verifyMatterAccess(req, parseInt(String(req.params.id)));
+      if (!matter) return res.status(404).json({ error: "Matter not found" });
+      const job = await enqueuePdfJob({
+        kind: "matter",
+        userId: getUserId(req),
+        organisationId: getOrgId(req),
+        username: getUsername(req),
+        matterId: matter.id,
+      });
+      await waitForTestJob(job);
+      return res.status(202).json({ jobId: job.id });
+    } catch (error: any) {
+      if (!res.headersSent) res.status(500).json({ error: error.message || "Export failed" });
+    }
+  });
+
+  app.get("/api/jobs/:id", async (req, res) => {
+    try {
+      const job = await pdfQueue.getJob(req.params.id);
+      if (!job) return res.status(404).json({ error: "Job not found" });
+      const data = job.data || {};
+      if (data.userId !== getUserId(req) && data.organisationId !== getOrgId(req)) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      if (data.organisationId != null && data.organisationId !== getOrgId(req)) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      const state = await job.getState();
+      if (state === "failed") {
+        return res.status(500).json({ error: job.failedReason || "Job failed" });
+      }
+      if (state !== "completed") {
+        return res.status(202).json({ jobId: job.id, status: "processing" });
+      }
+      const result = await getPdfResult(String(job.id));
+      if (!result) return res.status(404).json({ error: "Job result expired" });
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
+      return res.send(result.buffer);
+    } catch (error: any) {
+      if (!res.headersSent) res.status(500).json({ error: error.message || "Failed to load job" });
     }
   });
 
@@ -569,7 +568,7 @@ export async function registerRoutes(
 
   app.get("/api/journal-entries/:id", async (req, res) => {
     try {
-      const entry = await storage.getJournalEntry(parseInt(req.params.id), getUserId(req));
+      const entry = await storage.getJournalEntry(parseInt(String(req.params.id)), getUserId(req));
       if (!entry) return res.status(404).json({ error: "Journal entry not found" });
       const entryTimeEntries = await storage.getTimeEntries(entry.id);
       res.json({ ...entry, timeEntries: entryTimeEntries });
@@ -595,7 +594,7 @@ export async function registerRoutes(
   app.patch("/api/journal-entries/:id", async (req, res) => {
     try {
       const { title, activity, learning, reflection, category, entryDate } = req.body;
-      const entry = await storage.updateJournalEntry(parseInt(req.params.id), getUserId(req), {
+      const entry = await storage.updateJournalEntry(parseInt(String(req.params.id)), getUserId(req), {
         title, activity, learning, reflection, category,
         ...(entryDate ? { entryDate: new Date(entryDate) } : {}),
       });
@@ -608,7 +607,7 @@ export async function registerRoutes(
 
   app.delete("/api/journal-entries/:id", async (req, res) => {
     try {
-      await storage.deleteJournalEntry(parseInt(req.params.id), getUserId(req));
+      await storage.deleteJournalEntry(parseInt(String(req.params.id)), getUserId(req));
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete journal entry" });
@@ -627,7 +626,7 @@ export async function registerRoutes(
 
   app.delete("/api/time-entries/:id", async (req, res) => {
     try {
-      await storage.deleteTimeEntry(parseInt(req.params.id));
+      await storage.deleteTimeEntry(parseInt(String(req.params.id)));
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete time entry" });
@@ -636,7 +635,7 @@ export async function registerRoutes(
 
   app.get("/api/matters/:id/documents", async (req, res) => {
     try {
-      const matter = await verifyMatterAccess(req, parseInt(req.params.id));
+      const matter = await verifyMatterAccess(req, parseInt(String(req.params.id)));
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       const docs = await storage.getDocumentsByMatter(matter.id);
       res.json(docs);
@@ -647,7 +646,7 @@ export async function registerRoutes(
 
   app.post("/api/matters/:id/documents", requirePermission("canUploadDocuments"), docUpload.array("files", 20), async (req, res) => {
     try {
-      const matterId = parseInt(req.params.id);
+      const matterId = parseInt(String(req.params.id));
       const matter = await verifyMatterAccess(req, matterId);
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       const files = req.files as Express.Multer.File[];
@@ -683,7 +682,7 @@ export async function registerRoutes(
 
   app.delete("/api/documents/:id", async (req, res) => {
     try {
-      const doc = await storage.getDocument(parseInt(req.params.id));
+      const doc = await storage.getDocument(parseInt(String(req.params.id)));
       if (!doc) return res.status(404).json({ error: "Document not found" });
       const matter = await verifyMatterAccess(req, doc.matterId);
       if (!matter) return res.status(404).json({ error: "Document not found" });
@@ -702,7 +701,7 @@ export async function registerRoutes(
 
   app.get("/api/matters/:id/enquiry-packs", async (req, res) => {
     try {
-      const matter = await verifyMatterAccess(req, parseInt(req.params.id));
+      const matter = await verifyMatterAccess(req, parseInt(String(req.params.id)));
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       const packs = await storage.getEnquiryPacksByMatter(matter.id);
       res.json(packs);
@@ -713,8 +712,10 @@ export async function registerRoutes(
 
   app.get("/api/enquiry-packs/:id", async (req, res) => {
     try {
-      const pack = await storage.getEnquiryPack(parseInt(req.params.id));
+      const pack = await storage.getEnquiryPack(parseInt(String(req.params.id)));
       if (!pack) return res.status(404).json({ error: "Pack not found" });
+      const matter = await verifyMatterAccess(req, pack.matterId);
+      if (!matter) return res.status(404).json({ error: "Pack not found" });
       res.json(pack);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch enquiry pack" });
@@ -723,7 +724,7 @@ export async function registerRoutes(
 
   app.post("/api/matters/:id/generate-purchase-enquiries", async (req, res) => {
     try {
-      const matterId = parseInt(req.params.id);
+      const matterId = parseInt(String(req.params.id));
       const matter = await verifyMatterAccess(req, matterId);
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       if (matter.type !== "purchase") return res.status(400).json({ error: "Not a purchase matter" });
@@ -768,7 +769,7 @@ export async function registerRoutes(
 
   app.post("/api/matters/:id/generate-sale-replies", async (req, res) => {
     try {
-      const matterId = parseInt(req.params.id);
+      const matterId = parseInt(String(req.params.id));
       const matter = await verifyMatterAccess(req, matterId);
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       if (matter.type !== "sale") return res.status(400).json({ error: "Not a sale matter" });
@@ -815,7 +816,7 @@ export async function registerRoutes(
 
   app.post("/api/matters/:id/analyse-searches", async (req, res) => {
     try {
-      const matterId = parseInt(req.params.id);
+      const matterId = parseInt(String(req.params.id));
       const matter = await verifyMatterAccess(req, matterId);
       if (!matter) return res.status(404).json({ error: "Matter not found" });
 
@@ -884,9 +885,11 @@ export async function registerRoutes(
 
   app.patch("/api/enquiry-packs/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const pack = await storage.getEnquiryPack(id);
       if (!pack) return res.status(404).json({ error: "Pack not found" });
+      const matter = await verifyMatterAccess(req, pack.matterId);
+      if (!matter) return res.status(404).json({ error: "Pack not found" });
       const { contentMarkdown, contentJson } = req.body;
       const updated = await storage.updateEnquiryPack(id, { contentMarkdown, contentJson });
       await storage.createAuditLog({
@@ -902,9 +905,11 @@ export async function registerRoutes(
 
   app.post("/api/enquiry-packs/:id/approve", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const pack = await storage.getEnquiryPack(id);
       if (!pack) return res.status(404).json({ error: "Pack not found" });
+      const matter = await verifyMatterAccess(req, pack.matterId);
+      if (!matter) return res.status(404).json({ error: "Pack not found" });
       if (pack.status === "sent") return res.status(400).json({ error: "Pack already sent" });
       const username = getUsername(req);
       const updated = await storage.updateEnquiryPack(id, {
@@ -923,9 +928,11 @@ export async function registerRoutes(
 
   app.post("/api/enquiry-packs/:id/send", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const pack = await storage.getEnquiryPack(id);
       if (!pack) return res.status(404).json({ error: "Pack not found" });
+      const matter = await verifyMatterAccess(req, pack.matterId);
+      if (!matter) return res.status(404).json({ error: "Pack not found" });
       if (pack.status !== "approved") return res.status(400).json({ error: "Pack must be approved before sending" });
       const username = getUsername(req);
       const { recipient } = req.body;
@@ -955,7 +962,7 @@ export async function registerRoutes(
 
   app.get("/api/matters/:id/audit-logs", async (req, res) => {
     try {
-      const matter = await verifyMatterAccess(req, parseInt(req.params.id));
+      const matter = await verifyMatterAccess(req, parseInt(String(req.params.id)));
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       const logs = await storage.getAuditLogs(matter.id);
       res.json(logs);
@@ -996,7 +1003,7 @@ export async function registerRoutes(
 
   app.delete("/api/knowledge-resources/:id", async (req, res) => {
     try {
-      const resource = await storage.getKnowledgeResource(parseInt(req.params.id));
+      const resource = await storage.getKnowledgeResource(parseInt(String(req.params.id)));
       if (!resource) return res.status(404).json({ error: "Resource not found" });
       try { fs.unlinkSync(resource.filePath); } catch {}
       await storage.deleteKnowledgeResource(resource.id);
@@ -1053,7 +1060,7 @@ export async function registerRoutes(
 
   app.get("/api/matters/:id/builder-packs", async (req, res) => {
     try {
-      const matter = await verifyMatterAccess(req, parseInt(req.params.id));
+      const matter = await verifyMatterAccess(req, parseInt(String(req.params.id)));
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       const packs = await storage.getBuilderPacksByMatter(matter.id);
       res.json(packs);
@@ -1064,7 +1071,7 @@ export async function registerRoutes(
 
   app.post("/api/matters/:id/builder-packs", async (req, res) => {
     try {
-      const matterId = parseInt(req.params.id);
+      const matterId = parseInt(String(req.params.id));
       const matter = await verifyMatterAccess(req, matterId);
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       const username = getUsername(req);
@@ -1093,7 +1100,7 @@ export async function registerRoutes(
 
   app.put("/api/builder-packs/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const pack = await storage.getBuilderPack(id);
       if (!pack) return res.status(404).json({ error: "Pack not found" });
       const { selectedItemsJson, status } = req.body;
@@ -1118,7 +1125,7 @@ export async function registerRoutes(
 
   app.delete("/api/builder-packs/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const pack = await storage.getBuilderPack(id);
       if (!pack) return res.status(404).json({ error: "Pack not found" });
       await storage.deleteBuilderPack(id);
@@ -1138,7 +1145,7 @@ export async function registerRoutes(
 
   app.post("/api/builder-packs/:id/export", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const pack = await storage.getBuilderPack(id);
       if (!pack) return res.status(404).json({ error: "Pack not found" });
 
@@ -1165,7 +1172,7 @@ export async function registerRoutes(
       headerRow.alignment = { vertical: "middle" };
 
       selectedItems.forEach((sel, idx) => {
-        const lib = itemMap.get(sel.libraryItemId);
+        const lib = itemMap.get(sel.libraryItemId ?? 0);
         sheet.addRow({
           ref: `E${idx + 1}`,
           category: lib?.category || "",
@@ -1210,7 +1217,7 @@ export async function registerRoutes(
 
   app.post("/api/builder-packs/:id/create-task", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const pack = await storage.getBuilderPack(id);
       if (!pack) return res.status(404).json({ error: "Pack not found" });
       const task = await storage.createTask({
@@ -1219,7 +1226,7 @@ export async function registerRoutes(
         stage: "Enquiries",
         status: "pending",
         sortOrder: 100,
-        notes: `Enquiries pack #${pack.id} with ${(pack.selectedItemsJson || []).length} enquiries`,
+        notes: `Enquiries pack #${pack.id} with ${((pack.selectedItemsJson as unknown[]) || []).length} enquiries`,
       });
       await storage.createAuditLog({
         matterId: pack.matterId,
@@ -1237,7 +1244,7 @@ export async function registerRoutes(
 
   app.get("/api/matters/:matterId/financials", async (req, res) => {
     try {
-      const matterId = parseInt(req.params.matterId);
+      const matterId = parseInt(String(req.params.matterId));
       const matter = await verifyMatterAccess(req, matterId);
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       const [items, summary] = await Promise.all([
@@ -1252,7 +1259,7 @@ export async function registerRoutes(
 
   app.post("/api/matters/:matterId/financial-items", async (req, res) => {
     try {
-      const matterId = parseInt(req.params.matterId);
+      const matterId = parseInt(String(req.params.matterId));
       const matter = await verifyMatterAccess(req, matterId);
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       const { description, category, amount, vatRate, vatAmount, totalAmount, sortOrder } = req.body;
@@ -1273,7 +1280,11 @@ export async function registerRoutes(
 
   app.patch("/api/financial-items/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
+      const existing = await storage.getFinancialItem(id);
+      if (!existing) return res.status(404).json({ error: "Item not found" });
+      const matter = await verifyMatterAccess(req, existing.matterId);
+      if (!matter) return res.status(404).json({ error: "Item not found" });
       const { description, category, amount, vatRate, vatAmount, totalAmount, sortOrder } = req.body;
       const updates: Record<string, any> = {};
       if (description !== undefined) updates.description = description;
@@ -1293,7 +1304,11 @@ export async function registerRoutes(
 
   app.delete("/api/financial-items/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
+      const existing = await storage.getFinancialItem(id);
+      if (!existing) return res.status(404).json({ error: "Item not found" });
+      const matter = await verifyMatterAccess(req, existing.matterId);
+      if (!matter) return res.status(404).json({ error: "Item not found" });
       await storage.deleteFinancialItem(id);
       res.status(204).end();
     } catch (error) {
@@ -1303,7 +1318,7 @@ export async function registerRoutes(
 
   app.patch("/api/matters/:matterId/financials-summary", async (req, res) => {
     try {
-      const matterId = parseInt(req.params.matterId);
+      const matterId = parseInt(String(req.params.matterId));
       const matter = await verifyMatterAccess(req, matterId);
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       const { moniesOnAccount, mortgageAdvance, redemptionAmount, salePrice, purchasePrice } = req.body;
@@ -1322,7 +1337,7 @@ export async function registerRoutes(
 
   app.get("/api/matters/:matterId/financials/export", async (req, res) => {
     try {
-      const matterId = parseInt(req.params.matterId);
+      const matterId = parseInt(String(req.params.matterId));
       const matter = await verifyMatterAccess(req, matterId);
       if (!matter) return res.status(404).json({ error: "Matter not found" });
 
@@ -1533,7 +1548,7 @@ Provide clear, actionable advice. Reference relevant regulations when appropriat
 
   app.patch("/api/users/:id", requirePermission("canManageUsers"), async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const user = await storage.getUserById(id);
       if (!user || user.organisationId !== getOrgId(req)) {
         return res.status(404).json({ error: "User not found" });
@@ -1554,7 +1569,7 @@ Provide clear, actionable advice. Reference relevant regulations when appropriat
 
   app.delete("/api/users/:id", requirePermission("canManageUsers"), async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const user = await storage.getUserById(id);
       if (!user || user.organisationId !== getOrgId(req)) {
         return res.status(404).json({ error: "User not found" });
@@ -1571,7 +1586,7 @@ Provide clear, actionable advice. Reference relevant regulations when appropriat
 
   app.get("/api/matters/:id/compliance", async (req, res) => {
     try {
-      const matter = await verifyMatterAccess(req, parseInt(req.params.id));
+      const matter = await verifyMatterAccess(req, parseInt(String(req.params.id)));
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       const checks = await storage.getControlChecks(matter.id);
       res.json(checks);
@@ -1582,9 +1597,9 @@ Provide clear, actionable advice. Reference relevant regulations when appropriat
 
   app.post("/api/matters/:id/compliance/:checkId/complete", requirePermission("canCompleteChecks"), async (req, res) => {
     try {
-      const matter = await verifyMatterAccess(req, parseInt(req.params.id));
+      const matter = await verifyMatterAccess(req, parseInt(String(req.params.id)));
       if (!matter) return res.status(404).json({ error: "Matter not found" });
-      const checkId = parseInt(req.params.checkId);
+      const checkId = parseInt(String(req.params.checkId));
       const check = await storage.getControlCheck(checkId);
       if (!check || check.matterId !== matter.id) {
         return res.status(404).json({ error: "Check not found" });
@@ -1606,9 +1621,9 @@ Provide clear, actionable advice. Reference relevant regulations when appropriat
 
   app.post("/api/matters/:id/compliance/:checkId/uncomplete", requirePermission("canCompleteChecks"), async (req, res) => {
     try {
-      const matter = await verifyMatterAccess(req, parseInt(req.params.id));
+      const matter = await verifyMatterAccess(req, parseInt(String(req.params.id)));
       if (!matter) return res.status(404).json({ error: "Matter not found" });
-      const checkId = parseInt(req.params.checkId);
+      const checkId = parseInt(String(req.params.checkId));
       const check = await storage.getControlCheck(checkId);
       if (!check || check.matterId !== matter.id) {
         return res.status(404).json({ error: "Check not found" });
@@ -1630,7 +1645,7 @@ Provide clear, actionable advice. Reference relevant regulations when appropriat
 
   app.get("/api/matters/:id/compliance/validate-stage", async (req, res) => {
     try {
-      const matter = await verifyMatterAccess(req, parseInt(req.params.id));
+      const matter = await verifyMatterAccess(req, parseInt(String(req.params.id)));
       if (!matter) return res.status(404).json({ error: "Matter not found" });
       const result = await storage.validateStageProgression(matter.id, matter.currentStage);
       res.json(result);
@@ -1662,7 +1677,7 @@ Provide clear, actionable advice. Reference relevant regulations when appropriat
 
   app.get("/api/matters/:id/risk-assessment", async (req, res) => {
     try {
-      const matter = await verifyMatterAccess(req, parseInt(req.params.id));
+      const matter = await verifyMatterAccess(req, parseInt(String(req.params.id)));
       if (!matter) return res.status(404).json({ error: "Matter not found or access denied" });
       const orgId = getOrgId(req);
       const ra = await storage.getRiskAssessment(matter.id, orgId);
@@ -1674,7 +1689,7 @@ Provide clear, actionable advice. Reference relevant regulations when appropriat
 
   app.post("/api/matters/:id/risk-assessment", requirePermission("canCompleteChecks"), async (req, res) => {
     try {
-      const matter = await verifyMatterAccess(req, parseInt(req.params.id));
+      const matter = await verifyMatterAccess(req, parseInt(String(req.params.id)));
       if (!matter) return res.status(404).json({ error: "Matter not found or access denied" });
       const orgId = getOrgId(req);
       const userId = getUserId(req);
@@ -1716,6 +1731,8 @@ Provide clear, actionable advice. Reference relevant regulations when appropriat
       permissions: ROLE_PERMISSIONS[role],
     });
   });
+
+  registerBillingRoutes(app);
 
   return httpServer;
 }

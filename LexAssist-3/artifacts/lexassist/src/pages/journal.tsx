@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { BookOpen, Plus, Trash2, ChevronDown, ChevronUp, Download, FileDown } from "lucide-react";
-import { apiRequest, queryClient, getAuthToken } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { JournalEntry } from "@shared/schema";
 import { format, startOfISOWeek, endOfISOWeek, getISOWeek, getISOWeekYear } from "date-fns";
@@ -51,17 +51,31 @@ function toLocalDatetimeInput(d: Date): string {
 }
 
 async function downloadPdf(url: string, filename: string) {
-  const token = getAuthToken();
-  const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-  if (!res.ok) throw new Error(`Export failed: ${res.status}`);
-  const blob = await res.blob();
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(a.href);
+  const res = await fetch(url, { method: "POST", credentials: "include" });
+  if (res.status !== 202) {
+    throw new Error(`Export failed: ${res.status}`);
+  }
+  const { jobId } = await res.json();
+  for (let i = 0; i < 40; i++) {
+    const job = await fetch(`/api/jobs/${jobId}`, { credentials: "include" });
+    if (job.status === 200) {
+      const blob = await job.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+      return;
+    }
+    if (job.status === 202) {
+      await new Promise((r) => setTimeout(r, 250));
+      continue;
+    }
+    throw new Error(`Export failed: ${job.status}`);
+  }
+  throw new Error("Export timed out");
 }
 
 export default function Journal() {

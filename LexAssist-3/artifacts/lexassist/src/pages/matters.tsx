@@ -26,8 +26,16 @@ import { Link } from "wouter";
 import { Plus, Search, Briefcase, LayoutGrid, List, Eye, CalendarCheck, ArrowRight } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Matter, MatterType } from "@shared/schema";
-import { WORKFLOW_STAGES, IMMIGRATION_WORKFLOW_STAGES, IMMIGRATION_MATTER_TYPES, CONVEYANCING_MATTER_TYPES, getImmigrationWorkflowStages } from "@shared/schema";
+import type { Matter, MatterType, PracticeArea } from "@shared/schema";
+import {
+  WORKFLOW_STAGES,
+  ACTIVE_IMMIGRATION_MATTER_TYPES,
+  CONVEYANCING_MATTER_TYPES,
+  getImmigrationWorkflowStages,
+  getPracticeArea,
+  isImmigrationMatterType,
+  isActiveImmigrationType,
+} from "@shared/schema";
 import { useAuth } from "@/lib/auth-context";
 import { format, addDays } from "date-fns";
 
@@ -36,11 +44,13 @@ type ViewMode = "grid" | "list";
 export default function Matters() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [areaFilter, setAreaFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [practiceArea, setPracticeArea] = useState<PracticeArea | "">("");
   const [formType, setFormType] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const { toast } = useToast();
-  const { department } = useAuth();
+  const { department, hasPermission } = useAuth();
 
   const { data: matters, isLoading } = useQuery<Matter[]>({
     queryKey: ["/api/matters"],
@@ -54,6 +64,7 @@ export default function Matters() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/matters"] });
       setDialogOpen(false);
+      setPracticeArea("");
       setFormType("");
       toast({ title: "Matter created", description: "New matter has been created with workflow tasks." });
     },
@@ -64,12 +75,16 @@ export default function Matters() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!practiceArea) {
+      toast({ title: "Error", description: "Please select a practice area", variant: "destructive" });
+      return;
+    }
     if (!formType) {
-      toast({ title: "Error", description: "Please select a transaction type", variant: "destructive" });
+      toast({ title: "Error", description: "Please select a matter type", variant: "destructive" });
       return;
     }
     const formData = new FormData(e.currentTarget);
-    const isImmigration = (IMMIGRATION_MATTER_TYPES as readonly string[]).includes(formType);
+    const isImmigration = isImmigrationMatterType(formType);
     const initialStage = isImmigration ? getImmigrationWorkflowStages(formType)[0] : "Onboarding";
     createMutation.mutate({
       title: formData.get("title") as string,
@@ -83,11 +98,9 @@ export default function Matters() {
     });
   };
 
-  const isImmigrationMatter = (type: string) => (IMMIGRATION_MATTER_TYPES as readonly string[]).includes(type);
-
   const getNextStage = (matter: Matter): string | null => {
-    const stages = isImmigrationMatter(matter.type)
-      ? IMMIGRATION_WORKFLOW_STAGES
+    const stages = isImmigrationMatterType(matter.type)
+      ? getImmigrationWorkflowStages(matter.type)
       : WORKFLOW_STAGES[matter.type as MatterType];
     if (!stages) return null;
     const idx = (stages as readonly string[]).indexOf(matter.currentStage);
@@ -101,7 +114,9 @@ export default function Matters() {
       m.clientName.toLowerCase().includes(search.toLowerCase()) ||
       m.propertyAddress.toLowerCase().includes(search.toLowerCase());
     const matchesType = typeFilter === "all" || m.type === typeFilter;
-    return matchesSearch && matchesType;
+    const area = getPracticeArea(m.type);
+    const matchesArea = areaFilter === "all" || area === areaFilter;
+    return matchesSearch && matchesType && matchesArea;
   }) || [];
 
   const sorted = [...filtered].sort((a, b) => {
@@ -134,7 +149,25 @@ export default function Matters() {
 
   const showConveyancing = department === "conveyancing" || department === "both";
   const showImmigration = department === "immigration" || department === "both";
+  const isImmigrationForm = practiceArea === "immigration";
+  const canCreate = hasPermission("canCreateMatters");
 
+  const resetCreateDialog = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      setPracticeArea("");
+      setFormType("");
+    } else if (showImmigration && !showConveyancing) {
+      setPracticeArea("immigration");
+    } else if (showConveyancing && !showImmigration) {
+      setPracticeArea("conveyancing");
+    }
+  };
+
+  const onPracticeAreaChange = (value: PracticeArea) => {
+    setPracticeArea(value);
+    setFormType("");
+  };
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -147,7 +180,8 @@ export default function Matters() {
           </p>
         </div>
 
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setFormType(""); }}>
+        {canCreate && (
+        <Dialog open={dialogOpen} onOpenChange={resetCreateDialog}>
           <DialogTrigger asChild>
             <Button data-testid="button-new-matter">
               <Plus className="h-4 w-4 mr-2" />
@@ -157,38 +191,44 @@ export default function Matters() {
           <DialogContent className="glass sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Create New Matter</DialogTitle>
-              <DialogDescription>{showImmigration && !showConveyancing ? "Add a new immigration case" : "Add a new matter"}</DialogDescription>
+              <DialogDescription>Choose a practice area, then the matter type</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="title">Matter Title</Label>
-                <Input id="title" name="title" placeholder={showImmigration && !showConveyancing ? "e.g., Skilled Worker Visa — John Smith" : "e.g., Sale of 10 High Street"} required data-testid="input-matter-title" />
-              </div>
-              <div className="space-y-2">
-                <Label>{showImmigration && !showConveyancing ? "Case Type" : "Transaction Type"}</Label>
-                <Select value={formType} onValueChange={setFormType}>
-                  <SelectTrigger data-testid="select-matter-type">
-                    <SelectValue placeholder="Select type" />
+                <Label>Practice Area</Label>
+                <Select value={practiceArea} onValueChange={(v) => onPracticeAreaChange(v as PracticeArea)}>
+                  <SelectTrigger data-testid="select-practice-area">
+                    <SelectValue placeholder="Select practice area" />
                   </SelectTrigger>
                   <SelectContent>
-                    {showConveyancing && (
-                      <>
-                        <SelectItem value="sale">Sale</SelectItem>
-                        <SelectItem value="purchase">Purchase</SelectItem>
-                        <SelectItem value="remortgage">Remortgage</SelectItem>
-                      </>
-                    )}
-                    {showImmigration && (
-                      <>
-                        <SelectItem value="visa_application">Visa Application</SelectItem>
-                        <SelectItem value="asylum">Asylum</SelectItem>
-                        <SelectItem value="appeal">Appeal</SelectItem>
-                        <SelectItem value="settlement">Settlement</SelectItem>
-                        <SelectItem value="naturalisation">Naturalisation</SelectItem>
-                      </>
-                    )}
+                    {showConveyancing && <SelectItem value="conveyancing">Conveyancing</SelectItem>}
+                    {showImmigration && <SelectItem value="immigration">Immigration</SelectItem>}
                   </SelectContent>
                 </Select>
+              </div>
+              {practiceArea && (
+                <div className="space-y-2">
+                  <Label>{isImmigrationForm ? "Case Type" : "Transaction Type"}</Label>
+                  <Select value={formType} onValueChange={setFormType}>
+                    <SelectTrigger data-testid="select-matter-type">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {practiceArea === "conveyancing" &&
+                        CONVEYANCING_MATTER_TYPES.map((t) => (
+                          <SelectItem key={t} value={t}>{typeLabels[t]}</SelectItem>
+                        ))}
+                      {practiceArea === "immigration" &&
+                        ACTIVE_IMMIGRATION_MATTER_TYPES.filter(isActiveImmigrationType).map((t) => (
+                          <SelectItem key={t} value={t}>{typeLabels[t]}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="title">Matter Title</Label>
+                <Input id="title" name="title" placeholder={isImmigrationForm ? "e.g., Skilled Worker Visa — John Smith" : "e.g., Sale of 10 High Street"} required data-testid="input-matter-title" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="clientName">Client Name</Label>
@@ -199,19 +239,20 @@ export default function Matters() {
                 <Input id="clientEmail" name="clientEmail" type="email" placeholder="email@example.com" data-testid="input-client-email" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="propertyAddress">{showImmigration && !showConveyancing ? "Client Address" : "Property Address"}</Label>
-                <Textarea id="propertyAddress" name="propertyAddress" placeholder={showImmigration && !showConveyancing ? "Client address" : "Full property address"} required data-testid="input-property-address" />
+                <Label htmlFor="propertyAddress">{isImmigrationForm ? "Client Address" : "Property Address"}</Label>
+                <Textarea id="propertyAddress" name="propertyAddress" placeholder={isImmigrationForm ? "Client address" : "Full property address"} required data-testid="input-property-address" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="price">{showImmigration && !showConveyancing ? "Fee Quote" : "Price"}</Label>
-                <Input id="price" name="price" placeholder={showImmigration && !showConveyancing ? "e.g., 2,500" : "e.g., 350,000"} data-testid="input-price" />
+                <Label htmlFor="price">{isImmigrationForm ? "Fee Quote" : "Price"}</Label>
+                <Input id="price" name="price" placeholder={isImmigrationForm ? "e.g., 2,500" : "e.g., 350,000"} data-testid="input-price" />
               </div>
-              <Button type="submit" className="w-full" disabled={createMutation.isPending} data-testid="button-submit-matter">
+              <Button type="submit" className="w-full" disabled={createMutation.isPending || !practiceArea || !formType} data-testid="button-submit-matter">
                 {createMutation.isPending ? "Creating..." : "Create Matter"}
               </Button>
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
@@ -222,11 +263,24 @@ export default function Matters() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
+            aria-label="Search matters"
             data-testid="input-search-matters"
           />
         </div>
+        {showConveyancing && showImmigration && (
+          <Select value={areaFilter} onValueChange={setAreaFilter}>
+            <SelectTrigger className="w-44" aria-label="Filter by practice area" data-testid="select-filter-practice-area">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Practice Areas</SelectItem>
+              <SelectItem value="conveyancing">Conveyancing</SelectItem>
+              <SelectItem value="immigration">Immigration</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-40" data-testid="select-filter-type">
+          <SelectTrigger className="w-40" aria-label="Filter by matter type" data-testid="select-filter-type">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -254,17 +308,19 @@ export default function Matters() {
             variant={viewMode === "grid" ? "secondary" : "ghost"}
             size="icon"
             onClick={() => setViewMode("grid")}
+            aria-label="Grid view"
             data-testid="button-view-grid"
           >
-            <LayoutGrid className="h-4 w-4" />
+            <LayoutGrid className="h-4 w-4" aria-hidden="true" />
           </Button>
           <Button
             variant={viewMode === "list" ? "secondary" : "ghost"}
             size="icon"
             onClick={() => setViewMode("list")}
+            aria-label="List view"
             data-testid="button-view-list"
           >
-            <List className="h-4 w-4" />
+            <List className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
       </div>
@@ -295,9 +351,14 @@ export default function Matters() {
                   <CardContent className="p-5 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-semibold truncate flex-1">{matter.title}</h3>
-                      <Badge className={`capitalize text-xs ${typeColors[matter.type] || ""}`}>
-                        {typeLabels[matter.type] || matter.type}
-                      </Badge>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge variant="secondary" className="text-xs" data-testid={`badge-practice-area-${matter.id}`}>
+                          {getPracticeArea(matter.type) === "immigration" ? "Immigration" : "Conveyancing"}
+                        </Badge>
+                        <Badge className={`capitalize text-xs ${typeColors[matter.type] || ""}`}>
+                          {typeLabels[matter.type] || matter.type}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="space-y-1.5 text-sm text-muted-foreground">
                       <p className="truncate">{matter.clientName}</p>
