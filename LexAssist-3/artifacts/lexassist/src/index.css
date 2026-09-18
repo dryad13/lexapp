@@ -51,6 +51,51 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* Brand logo / copy entrance — login & landing heroes */
+@keyframes brand-logo-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes brand-copy-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.brand-logo-reveal {
+  animation: brand-logo-reveal 0.95s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.brand-copy-reveal {
+  animation: brand-copy-reveal 0.75s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 0.28s;
+}
+
+.brand-copy-reveal-late {
+  animation: brand-copy-reveal 0.75s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 0.48s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo-reveal,
+  .brand-copy-reveal,
+  .brand-copy-reveal-late {
+    animation: none;
+  }
+}
+
 /* LIGHT MODE — parchment + forest green */
 :root {
   --button-outline: rgba(0,0,0, .10);

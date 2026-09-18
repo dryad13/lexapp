@@ -69,10 +69,10 @@ export default function Login({ onLogin }: LoginProps) {
         data-testid="card-login"
       >
         <CardHeader className="text-center space-y-3 pb-4 pt-7">
-          <BrandLogo size={88} className="mx-auto mb-1" />
+          <BrandLogo reveal size={88} className="mx-auto mb-1" />
 
           {/* Firm name */}
-          <div>
+          <div className="brand-copy-reveal">
             <CardTitle
               className="text-xl"
               style={{
@@ -87,7 +87,7 @@ export default function Login({ onLogin }: LoginProps) {
           </div>
 
           <p
-            className="text-sm"
+            className="text-sm brand-copy-reveal-late"
             style={{ color: "rgba(27,77,62,0.55)" }}
           >
             Sign in to manage your matters

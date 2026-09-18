@@ -41,11 +41,11 @@ export default function Landing() {
 
       {/* ── Hero ── */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center py-24">
-        <BrandLogo size={120} className="mb-8" />
+        <BrandLogo reveal size={120} className="mb-8" />
 
         {/* Client firm name */}
         <h1
-          className="mb-3 font-bold tracking-widest"
+          className="mb-3 font-bold tracking-widest brand-copy-reveal"
           style={{
             fontFamily: "Cochin, 'Cochin LT Std', 'Times New Roman', Georgia, serif",
             fontSize: "26pt",
@@ -59,7 +59,7 @@ export default function Landing() {
 
         {/* Tagline */}
         <p
-          className="mt-8 mb-10 max-w-md leading-relaxed"
+          className="mt-8 mb-10 max-w-md leading-relaxed brand-copy-reveal-late"
           style={{
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             fontSize: "15px",

@@ -25,7 +25,7 @@ import ComplianceDashboard from "@/pages/compliance-dashboard";
 import ImmigrationAssessment from "@/pages/immigration-assessment";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut } from "lucide-react";
+import { LogOut, Scale } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 
 function RedirectToDashboard() {
