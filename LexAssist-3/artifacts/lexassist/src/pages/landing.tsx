@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { LogIn, Scale } from "lucide-react";
+import { LogIn } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 
 export default function Landing() {
   return (
@@ -12,12 +13,7 @@ export default function Landing() {
       {/* ── Top bar ── */}
       <nav className="flex items-center justify-between px-8 py-5" style={{ borderBottom: "1px solid rgba(27,77,62,0.12)" }}>
         <div className="flex items-center gap-3">
-          <div
-            className="flex h-9 w-9 items-center justify-center rounded-full"
-            style={{ background: "#1B4D3E" }}
-          >
-            <Scale className="h-4 w-4 text-white" />
-          </div>
+          <BrandLogo size={40} />
           <span
             className="font-bold tracking-wide"
             style={{ fontFamily: "'Playfair Display', Georgia, serif", color: "#1B4D3E", fontSize: "18px" }}
@@ -45,13 +41,7 @@ export default function Landing() {
 
       {/* ── Hero ── */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center py-24">
-        {/* Logo medallion */}
-        <div
-          className="flex h-20 w-20 items-center justify-center rounded-full mb-8 shadow-lg"
-          style={{ background: "#1B4D3E" }}
-        >
-          <Scale className="h-9 w-9 text-white" />
-        </div>
+        <BrandLogo size={120} className="mb-8" />
 
         {/* Client firm name */}
         <h1

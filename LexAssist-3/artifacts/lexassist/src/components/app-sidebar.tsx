@@ -17,7 +17,6 @@ import {
   Mail,
   Bell,
   Bot,
-  Scale,
   BookOpen,
   Library,
   Users,
@@ -25,6 +24,7 @@ import {
   Plane,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { BrandLogo } from "@/components/brand-logo";
 
 type NavItem = { title: string; url: string; icon: typeof LayoutDashboard; dept?: "conveyancing" | "immigration" };
 
@@ -64,15 +64,7 @@ export function AppSidebar() {
     <Sidebar className="border-r border-sidebar-border">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <div
-            className="flex h-9 w-9 items-center justify-center rounded-full flex-shrink-0"
-            style={{
-              background: "rgba(245,240,230,0.15)",
-              border: "1px solid rgba(245,240,230,0.25)",
-            }}
-          >
-            <Scale className="h-4 w-4 text-sidebar-foreground" />
-          </div>
+          <BrandLogo size={36} className="flex-shrink-0 rounded-sm bg-[rgba(245,240,230,0.12)]" />
           <div className="min-w-0">
             <h2
               className="text-sm font-semibold truncate text-sidebar-foreground"

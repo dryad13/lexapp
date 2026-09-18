@@ -25,7 +25,8 @@ import ComplianceDashboard from "@/pages/compliance-dashboard";
 import ImmigrationAssessment from "@/pages/immigration-assessment";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Scale } from "lucide-react";
+import { LogOut } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 
 function RedirectToDashboard() {
   const [, setLocation] = useLocation();
@@ -148,6 +149,7 @@ function AppContent() {
                 <SidebarTrigger
                   style={{ color: "#1B4D3E" }}
                 />
+                <BrandLogo size={28} className="hidden sm:block" />
                 <span
                   className="text-sm font-semibold hidden sm:inline"
                   style={{

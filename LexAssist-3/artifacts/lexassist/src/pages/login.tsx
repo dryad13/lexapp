@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Lock, User, Scale } from "lucide-react";
+import { Lock, User } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 interface LoginProps {
   onLogin: (data: { username: string; role: string; organisationId: number; displayName: string; department?: string }) => void;
 }
@@ -68,13 +69,7 @@ export default function Login({ onLogin }: LoginProps) {
         data-testid="card-login"
       >
         <CardHeader className="text-center space-y-3 pb-4 pt-7">
-          {/* Brand medallion */}
-          <div
-            className="mx-auto flex h-14 w-14 items-center justify-center rounded-full mb-1"
-            style={{ background: "#1B4D3E" }}
-          >
-            <Scale className="h-6 w-6 text-white" />
-          </div>
+          <BrandLogo size={88} className="mx-auto mb-1" />
 
           {/* Firm name */}
           <div>
