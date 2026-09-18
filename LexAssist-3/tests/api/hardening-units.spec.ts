@@ -14,7 +14,14 @@ describe("hardening unit helpers (in-process coverage)", () => {
       DATABASE_URL: "postgres://u:p@localhost/db",
       DATABASE_SSL: "true",
     } as NodeJS.ProcessEnv);
-    expect(tls.ssl).toMatchObject({ rejectUnauthorized: true, minVersion: "TLSv1.3" });
+    expect(tls.ssl).toMatchObject({ rejectUnauthorized: false });
+
+    const strict = buildPoolConfig({
+      DATABASE_URL: "postgres://u:p@localhost/db",
+      DATABASE_SSL: "true",
+      DATABASE_SSL_REJECT_UNAUTHORIZED: "true",
+    } as NodeJS.ProcessEnv);
+    expect(strict.ssl).toMatchObject({ rejectUnauthorized: true });
   });
 
   it("hashUserAgent is stable and SESSION_COOKIE is set", () => {

@@ -227,7 +227,7 @@ app.use((req, res, next) => {
   await withRlsBypass(async () => {
     await seedDatabase().catch((err) => console.error("Seed error:", err));
     await storage.migrateEncryption().catch((err) => console.error("Encryption migration error:", err));
-  });
+  }).catch((err) => console.error("Seed/migration transaction error:", err));
 
   const workerRole = process.env.WORKER_ROLE;
   await startQueueWorkers(workerRole || undefined);

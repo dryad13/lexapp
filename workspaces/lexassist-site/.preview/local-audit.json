@@ -1,0 +1,79 @@
+{
+  "title": "LexAssist",
+  "scrollHeight": 4222,
+  "headerLinks": [
+    "Home",
+    "About us",
+    "Eligibility Check",
+    "Apply for a Licence",
+    "Stay Compliant",
+    "LexAssist Bench",
+    "LexAssist home",
+    "Contact Us",
+    "Account"
+  ],
+  "h1": {
+    "tag": "H1",
+    "text": "Defined by clarity. Driven by results.",
+    "w": 475,
+    "h": 193,
+    "color": "rgb(15, 76, 58)",
+    "bg": "rgba(0, 0, 0, 0)",
+    "font": "Karla",
+    "size": "53.6px",
+    "weight": "700",
+    "pad": "0px",
+    "align": "right"
+  },
+  "h2s": [
+    "OUR SERVICES",
+    "Three doors in, depending on where you are",
+    "Consultation",
+    "Visa Applications",
+    "Solicitor Support",
+    "Sponsor Compliance",
+    "Sponsor License Application",
+    "LexAssist Bench — flexible legal support, without a full hire"
+  ],
+  "h3s": [
+    "Immigration Application Support",
+    "Global Mobility & Business Immigration",
+    "Case Preparation",
+    "Solicitor Support Services",
+    "Eligibility Check",
+    "Apply for a Licence",
+    "Stay Compliant"
+  ],
+  "imgs": [
+    {
+      "src": "http://127.0.0.1:8080/assets/logo.png",
+      "w": 400,
+      "h": 400,
+      "displayW": 140,
+      "displayH": 140,
+      "alt": "LexAssist"
+    }
+  ],
+  "linkCount": 28,
+  "social": [
+    {
+      "label": "Facebook",
+      "href": "http://127.0.0.1:8080/#"
+    },
+    {
+      "label": "Instagram",
+      "href": "http://127.0.0.1:8080/#"
+    },
+    {
+      "label": "LinkedIn",
+      "href": "http://127.0.0.1:8080/#"
+    },
+    {
+      "label": "TikTok",
+      "href": "http://127.0.0.1:8080/#"
+    }
+  ],
+  "footerText": "PRIVACY POLICY\n\nLexassist Ltd\n\n86-90 Paul Street, London, EC2A 4NE\n\nAsk@lexassist.uk\n\nCopyright © 2026 LexAssist - All Rights Reserved.",
+  "hasCart": false,
+  "metaTheme": "#163018"
+}

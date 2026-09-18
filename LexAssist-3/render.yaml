@@ -37,6 +37,9 @@ services:
         sync: false
       - key: DATABASE_SSL
         value: "true"
+      # Keep false on Render managed Postgres (self-signed chain). Set true only with a private CA.
+      - key: DATABASE_SSL_REJECT_UNAUTHORIZED
+        value: "false"
 
 databases:
   - name: lexassist3-db

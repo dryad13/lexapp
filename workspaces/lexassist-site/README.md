@@ -17,7 +17,7 @@ No build step. Plain HTML + CSS + `site.js`.
 
 Footer link **Staff sign in** opens the LexAssist-3 practice app login:
 
-- App URL: https://lexassist-ly9v.onrender.com/login
+- App URL: https://lexassist-app.onrender.com/login
 - Render service: `lexassist` (Docker, Postgres `lexassist3-db`)
 
 This is staff-only. There is no public Create account on the marketing site.

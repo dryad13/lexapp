@@ -1,0 +1,98 @@
+{
+  "title": "LexAssist",
+  "scrollHeight": 4278,
+  "headerLinks": [
+    "Hamburger Site Navigation Icon",
+    "Home",
+    "About us",
+    "Contact Us",
+    "Home",
+    "About us",
+    "Contact Us",
+    "More",
+    "Home",
+    "About us",
+    "Contact Us",
+    "Shopping Cart Icon",
+    "Sign In",
+    "Create Account",
+    "Bookings",
+    "My Account",
+    "Bookings",
+    "My Account"
+  ],
+  "h1": {
+    "tag": "H1",
+    "text": "Defined by clarity. Driven by results.",
+    "w": 538,
+    "h": 130,
+    "color": "rgb(15, 76, 58)",
+    "bg": "rgba(0, 0, 0, 0)",
+    "font": "Karla",
+    "size": "54px",
+    "weight": "700",
+    "pad": "0px",
+    "align": "right"
+  },
+  "h2s": [
+    "Our Services"
+  ],
+  "h3s": [
+    "Immigration Application Support",
+    "",
+    "",
+    "Global Mobility & Business Immigration",
+    "",
+    "",
+    "Case Preparation",
+    "",
+    "",
+    "Solicitor Support Services",
+    "",
+    "",
+    "Consultation",
+    "Visa Applications",
+    "Solicitor Support",
+    "Sponsor Compliance"
+  ],
+  "imgs": [
+    {
+      "src": "https://img1.wsimg.com/isteam/ip/3c6dc096-af2d-4ce5-9458-675f03ef2274/804D283E-99E6-4EA1-B6BD-24DA2B1E5C22.PNG/:/rs=w:200,h:200,cg:true,m/cr=w:200,h:200/qt=q:95",
+      "w": 200,
+      "h": 200,
+      "displayW": 0,
+      "displayH": 0,
+      "alt": "LexAssist "
+    },
+    {
+      "src": "https://img1.wsimg.com/isteam/ip/3c6dc096-af2d-4ce5-9458-675f03ef2274/804D283E-99E6-4EA1-B6BD-24DA2B1E5C22.PNG/:/rs=w:200,h:200,cg:true,m/cr=w:200,h:200/qt=q:95",
+      "w": 200,
+      "h": 200,
+      "displayW": 200,
+      "displayH": 200,
+      "alt": "LexAssist "
+    }
+  ],
+  "linkCount": 40,
+  "social": [
+    {
+      "label": "Facebook Social Link",
+      "href": "https://www.facebook.com/people/Lexassist/61587287003680/?mibextid=wwXIfr&rdid=EWl1WCf7Qe4FbahY&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2F1CeG4CC8jG%2F%3Fmibextid%3DwwXIfr"
+    },
+    {
+      "label": "Instagram Social Link",
+      "href": "https://www.instagram.com/lexassistuk?igsh=MWs2NXJjdHd4ZjZtcw=="
+    },
+    {
+      "label": "LinkedIn Social Link",
+      "href": "https://www.linkedin.com/company/lexassist/"
+    },
+    {
+      "label": "TikTok",
+      "href": "https://www.tiktok.com/@lexassist.uk?_r=1&_t=ZN-94iscyHIfjC"
+    }
+  ],
+  "footerText": "Privacy Policy\n\nLexassist Ltd\n\n86-90 Paul Street, London, EC2A 4NE\n\nAsk@lexassist.uk\n\nCopyright © 2026 LexAssist  - All Rights Reserved.",
+  "hasCart": true,
+  "metaTheme": "#163018"
+}
