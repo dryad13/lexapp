@@ -1,0 +1,28 @@
+[build]
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+
+[[redirects]]
+  from = "/eligibility-check"
+  to = "/eligibility-check.html"
+  status = 200
+
+[[redirects]]
+  from = "/apply-for-sponsor-licence"
+  to = "/apply-for-sponsor-licence.html"
+  status = 200
+
+[[redirects]]
+  from = "/sponsor-compliance"
+  to = "/sponsor-compliance.html"
+  status = 200
+
+[[redirects]]
+  from = "/legal-talent"
+  to = "/legal-talent.html"
+  status = 200
