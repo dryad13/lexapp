@@ -6,6 +6,7 @@ type BrandLogoProps = {
   alt?: string;
   /** Soft entrance on mount — use for login / landing heroes */
   reveal?: boolean;
+  "data-testid"?: string;
 };
 
 /** Public asset path that respects Vite BASE_URL / Render BASE_PATH. */
@@ -19,6 +20,7 @@ export function BrandLogo({
   size = 40,
   alt = "LexAssist",
   reveal = false,
+  "data-testid": testId,
 }: BrandLogoProps) {
   return (
     <img
@@ -29,6 +31,7 @@ export function BrandLogo({
       className={cn(reveal && "brand-logo-reveal", className)}
       style={{ width: size, height: size, objectFit: "contain" }}
       decoding="async"
+      data-testid={testId}
     />
   );
 }

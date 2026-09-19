@@ -64,25 +64,17 @@ export function AppSidebar() {
     <Sidebar className="border-r border-sidebar-border">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <BrandLogo size={36} className="flex-shrink-0 rounded-sm bg-[rgba(245,240,230,0.12)]" />
-          <div className="min-w-0">
-            <h2
-              className="text-sm font-semibold truncate text-sidebar-foreground"
-              style={{
-                fontFamily: "'Playfair Display', Georgia, serif",
-                letterSpacing: "0.02em",
-              }}
-              data-testid="text-app-name"
-            >
-              LexAssist
-            </h2>
-            <p
-              className="text-xs truncate"
-              style={{ color: "rgba(245,240,230,0.50)", letterSpacing: "0.04em" }}
-            >
-              {department === "immigration" ? "Immigration Practice" : department === "both" ? "Legal Practice" : "Conveyancing Assistant"}
-            </p>
-          </div>
+          <BrandLogo
+            size={52}
+            className="flex-shrink-0 rounded-sm bg-[rgba(245,240,230,0.12)]"
+            data-testid="text-app-name"
+          />
+          <p
+            className="text-xs truncate min-w-0"
+            style={{ color: "rgba(245,240,230,0.50)", letterSpacing: "0.04em" }}
+          >
+            {department === "immigration" ? "Immigration Practice" : department === "both" ? "Legal Practice" : "Conveyancing Assistant"}
+          </p>
         </div>
       </SidebarHeader>
 

@@ -12,14 +12,8 @@ export default function Landing() {
     >
       {/* ── Top bar ── */}
       <nav className="flex items-center justify-between px-8 py-5" style={{ borderBottom: "1px solid rgba(27,77,62,0.12)" }}>
-        <div className="flex items-center gap-3">
-          <BrandLogo size={40} />
-          <span
-            className="font-bold tracking-wide"
-            style={{ fontFamily: "'Playfair Display', Georgia, serif", color: "#1B4D3E", fontSize: "18px" }}
-          >
-            LexAssist
-          </span>
+        <div className="flex items-center">
+          <BrandLogo size={56} />
         </div>
         <Link href="/login">
           <Button
@@ -41,25 +35,11 @@ export default function Landing() {
 
       {/* ── Hero ── */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center py-24">
-        <BrandLogo reveal size={120} className="mb-8" />
-
-        {/* Client firm name */}
-        <h1
-          className="mb-3 font-bold tracking-widest brand-copy-reveal"
-          style={{
-            fontFamily: "Cochin, 'Cochin LT Std', 'Times New Roman', Georgia, serif",
-            fontSize: "26pt",
-            color: "#1B4D3E",
-            letterSpacing: "0.18em",
-          }}
-          data-testid="text-company-name"
-        >
-          LexAssist
-        </h1>
+        <BrandLogo reveal size={168} className="mb-8" data-testid="text-company-name" />
 
         {/* Tagline */}
         <p
-          className="mt-8 mb-10 max-w-md leading-relaxed brand-copy-reveal-late"
+          className="mt-2 mb-10 max-w-md leading-relaxed brand-copy-reveal"
           style={{
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             fontSize: "15px",

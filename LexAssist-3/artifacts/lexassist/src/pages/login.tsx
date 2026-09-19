@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,25 +69,10 @@ export default function Login({ onLogin }: LoginProps) {
         data-testid="card-login"
       >
         <CardHeader className="text-center space-y-3 pb-4 pt-7">
-          <BrandLogo reveal size={88} className="mx-auto mb-1" />
-
-          {/* Firm name */}
-          <div className="brand-copy-reveal">
-            <CardTitle
-              className="text-xl"
-              style={{
-                fontFamily: "'Playfair Display', Georgia, serif",
-                color: "#1B4D3E",
-                letterSpacing: "-0.01em",
-              }}
-              data-testid="text-login-title"
-            >
-              LexAssist
-            </CardTitle>
-          </div>
+          <BrandLogo reveal size={128} className="mx-auto mb-1" data-testid="text-login-title" />
 
           <p
-            className="text-sm brand-copy-reveal-late"
+            className="text-sm brand-copy-reveal"
             style={{ color: "rgba(27,77,62,0.55)" }}
           >
             Sign in to manage your matters

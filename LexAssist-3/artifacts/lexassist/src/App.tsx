@@ -149,17 +149,7 @@ function AppContent() {
                 <SidebarTrigger
                   style={{ color: "#1B4D3E" }}
                 />
-                <BrandLogo size={28} className="hidden sm:block" />
-                <span
-                  className="text-sm font-semibold hidden sm:inline"
-                  style={{
-                    fontFamily: "'Playfair Display', Georgia, serif",
-                    color: "#1B4D3E",
-                    letterSpacing: "0.02em",
-                  }}
-                >
-                  LexAssist
-                </span>
+                <BrandLogo size={40} />
               </div>
 
               <div className="flex items-center gap-2">
