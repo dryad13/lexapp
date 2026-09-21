@@ -56,6 +56,45 @@ LexAssist is now a **firm-ready practice system**: staff can run conveyancing an
 
 ---
 
+## How to sign in (demo / pilot logins)
+
+**Staff sign-in address:** [https://lexassist-app.onrender.com/login](https://lexassist-app.onrender.com/login)
+
+Use the username and password below. If the screen asks for an **organisation**, enter **Gardner Champion** (the demo firm name).
+
+These accounts exist when the environment is set up for demos / internal pilots. A live firm go-live uses **new passwords created for that firm** — demo seeding is switched off in production so these credentials are not left on for real client data.
+
+### Demo firm accounts (Gardner Champion)
+
+| Who it is for | Username | Password | What they can do |
+|---------------|----------|----------|------------------|
+| Firm admin (full control) | `admin` | `admin12` | Manage users, matters, settings for the demo firm |
+| Firm principal / admin | `zaid.khan` | `HU51BAN` | Same admin access (named demo account) |
+| Fee earner | `hasinah.ahmed` | `Ahmed12` | Day-to-day matters, drafts, progression |
+| Fee earner | `kayaam.bashir` | `Bashir12` | Day-to-day matters |
+| Fee earner | `faizal.lunat` | `Lunat12` | Day-to-day matters |
+| Read-only viewer | `readonly` | `Readonly12` | View matters; cannot create or edit |
+
+**Suggested walkthrough:** start as `admin` or `hasinah.ahmed` → open **Matters** → try a conveyancing matter and an immigration matter → check Reminders, Journal export, and Compliance.
+
+### LexAssist operator (platform) login
+
+For LexAssist staff who create or suspend firms (not for fee earners browsing client files):
+
+| Role | Username | Password | Where |
+|------|----------|----------|--------|
+| Platform operator | `platform.admin` | `PlatformAdmin12` | After sign-in, open the **Platform** area |
+
+This account is for **operator console** work (create firm, reset a firm admin password, suspend a firm). It is not a substitute for a firm solicitor login.
+
+### Important for the client
+
+- Treat these passwords as **demo-only**. Change them (or issue fresh firm accounts) before any real client matter data goes live.  
+- Do not post these credentials on public websites or open tickets. Share them privately with people who need to try the pilot.  
+- On a true production firm, each person gets their own login; admins can require stronger passwords and multi-factor checks.
+
+---
+
 ## What Laya is (and is not)
 
 **Laya is a decision engine, not a chatbot and not a replacement solicitor.**
