@@ -256,6 +256,8 @@ h1,h2,h3,h4{font-family:'Playfair Display',serif}
 </div>
 
 <script>
+function blockedImmigrationAi(){alert("Immigration AI from the browser is disabled. Use the practice app AI Assist instead.");return Promise.reject(new Error("AI disabled"));}
+
 const PAGES = {
 home: () => `
 <div class="page-header">
@@ -978,16 +980,7 @@ async function askAI(question) {
   scrollAI();
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: SYSTEM_PROMPT,
-        messages: aiMessages
-      })
-    });
+    const resp = await blockedImmigrationAi();
     const data = await resp.json();
     const reply = data.content && data.content[0] ? data.content[0].text : 'Unable to get a response. Please try again.';
     aiMessages.push({ role: 'assistant', content: reply });

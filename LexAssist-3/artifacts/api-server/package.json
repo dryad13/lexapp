@@ -8,6 +8,7 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "worker": "WORKER_ROLE=${WORKER_ROLE:-billing} tsx --tsconfig tsconfig.json src/lexassist/index.ts",
+    "create-org": "tsx --tsconfig tsconfig.json src/lexassist/create-org.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

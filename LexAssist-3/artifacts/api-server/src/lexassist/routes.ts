@@ -6,6 +6,7 @@ import type { MatterType, EnquiryPackItem, UserRole } from "../shared/schema";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { requirePermission } from "./auth-guards";
 import { registerBillingRoutes } from "./stripe-billing";
+import { registerPlatformRoutes, assertFirmAssignableRole } from "./platform-routes";
 import { enqueuePdfJob, waitForTestJob, getPdfResult, pdfQueue } from "./queues";
 import OpenAI from "openai";
 import multer from "multer";
@@ -14,21 +15,34 @@ import fs from "fs";
 import bcrypt from "bcryptjs";
 import { generatePurchaseEnquiriesPack, generateSaleRepliesPack, analyseSearchResults, jsonToMarkdown, redactSensitiveData } from "./enquiries-ai";
 import { seedEnquiriesLibrary } from "./enquiries-seed-runner";
+import { withRlsBypass } from "./db";
 import ExcelJS from "exceljs";
+import { validatePassword } from "./password-policy";
+import { ensureLocalOrgDir } from "./object-store";
+import {
+  aiNotConfiguredError,
+  isAiConfigured,
+  resolveAiApiKey,
+  resolveAiBaseUrl,
+  resolveAiModel,
+} from "./ai-config";
 
 const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY || "placeholder",
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || undefined,
+  apiKey: resolveAiApiKey() || "missing-key",
+  baseURL: resolveAiBaseUrl(),
 });
 
-const AI_MODEL = process.env.AI_MODEL || (process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ? "gpt-5.1" : "gpt-4o");
+const AI_MODEL = resolveAiModel();
 
 const docUpload = multer({
   storage: multer.diskStorage({
-    destination: (_req, _file, cb) => {
-      const dir = path.join(process.cwd(), "uploads", "documents");
-      fs.mkdirSync(dir, { recursive: true });
-      cb(null, dir);
+    destination: (req, _file, cb) => {
+      try {
+        const orgId = (req as any).organisationId as number;
+        cb(null, ensureLocalOrgDir(orgId, "documents"));
+      } catch (err) {
+        cb(err as Error, "");
+      }
     },
     filename: (_req, file, cb) => {
       cb(null, `${Date.now()}-${file.originalname}`);
@@ -39,10 +53,13 @@ const docUpload = multer({
 
 const knowledgeUpload = multer({
   storage: multer.diskStorage({
-    destination: (_req, _file, cb) => {
-      const dir = path.join(process.cwd(), "uploads", "knowledge");
-      fs.mkdirSync(dir, { recursive: true });
-      cb(null, dir);
+    destination: (req, _file, cb) => {
+      try {
+        const orgId = (req as any).organisationId as number;
+        cb(null, ensureLocalOrgDir(orgId, "knowledge"));
+      } catch (err) {
+        cb(err as Error, "");
+      }
     },
     filename: (_req, file, cb) => {
       cb(null, `${Date.now()}-${file.originalname}`);
@@ -419,9 +436,9 @@ export async function registerRoutes(
         const matter = await verifyMatterAccess(req, reminder.matterId);
         if (!matter) return res.status(404).json({ error: "Reminder not found" });
       }
-      const reminder2 = await storage.completeReminder(parseInt(String(req.params.id)));
-      if (!reminder) return res.status(404).json({ error: "Reminder not found" });
-      res.json(reminder);
+      const completed = await storage.completeReminder(parseInt(String(req.params.id)));
+      if (!completed) return res.status(404).json({ error: "Reminder not found" });
+      res.json(completed);
     } catch (error) {
       res.status(500).json({ error: "Failed to complete reminder" });
     }
@@ -438,6 +455,7 @@ export async function registerRoutes(
 
   app.post("/api/ai/generate-email", async (req, res) => {
     try {
+      if (!isAiConfigured()) return res.status(503).json(aiNotConfiguredError());
       const { context, recipient, subject } = req.body;
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -452,7 +470,9 @@ export async function registerRoutes(
           },
           {
             role: "user",
-            content: `Generate a professional email draft for the following context:\n\nRecipient: ${recipient || "Not specified"}\nSubject: ${subject || "Not specified"}\nContext: ${context}`,
+            content: redactSensitiveData(
+              `Generate a professional email draft for the following context:\n\nRecipient: ${recipient || "Not specified"}\nSubject: ${subject || "Not specified"}\nContext: ${context}`,
+            ),
           },
         ],
         stream: true,
@@ -579,7 +599,7 @@ export async function registerRoutes(
 
   app.post("/api/journal-entries", async (req, res) => {
     try {
-      const body = { ...req.body, userId: getUserId(req) };
+      const body = { ...req.body, userId: getUserId(req), organisationId: getOrgId(req) };
       if (body.entryDate && typeof body.entryDate === "string") {
         body.entryDate = new Date(body.entryDate);
       }
@@ -616,7 +636,13 @@ export async function registerRoutes(
 
   app.post("/api/time-entries", async (req, res) => {
     try {
-      const data = insertTimeEntrySchema.parse(req.body);
+      const journalId = parseInt(String(req.body.journalEntryId));
+      const journal = await storage.getJournalEntry(journalId, getUserId(req));
+      if (!journal) return res.status(404).json({ error: "Journal entry not found" });
+      const data = insertTimeEntrySchema.parse({
+        ...req.body,
+        organisationId: journal.organisationId ?? getOrgId(req),
+      });
       const entry = await storage.createTimeEntry(data);
       res.status(201).json(entry);
     } catch (error: any) {
@@ -724,6 +750,7 @@ export async function registerRoutes(
 
   app.post("/api/matters/:id/generate-purchase-enquiries", async (req, res) => {
     try {
+      if (!isAiConfigured()) return res.status(503).json(aiNotConfiguredError());
       const matterId = parseInt(String(req.params.id));
       const matter = await verifyMatterAccess(req, matterId);
       if (!matter) return res.status(404).json({ error: "Matter not found" });
@@ -769,6 +796,7 @@ export async function registerRoutes(
 
   app.post("/api/matters/:id/generate-sale-replies", async (req, res) => {
     try {
+      if (!isAiConfigured()) return res.status(503).json(aiNotConfiguredError());
       const matterId = parseInt(String(req.params.id));
       const matter = await verifyMatterAccess(req, matterId);
       if (!matter) return res.status(404).json({ error: "Matter not found" });
@@ -816,6 +844,7 @@ export async function registerRoutes(
 
   app.post("/api/matters/:id/analyse-searches", async (req, res) => {
     try {
+      if (!isAiConfigured()) return res.status(503).json(aiNotConfiguredError());
       const matterId = parseInt(String(req.params.id));
       const matter = await verifyMatterAccess(req, matterId);
       if (!matter) return res.status(404).json({ error: "Matter not found" });
@@ -971,9 +1000,9 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/knowledge-resources", async (_req, res) => {
+  app.get("/api/knowledge-resources", async (req, res) => {
     try {
-      const resources = await storage.getKnowledgeResources();
+      const resources = await storage.getKnowledgeResources(getOrgId(req));
       res.json(resources);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch knowledge resources" });
@@ -991,6 +1020,7 @@ export async function registerRoutes(
         extractedText = fs.readFileSync(file.path, "utf-8").slice(0, 50000);
       } catch {}
       const resource = await storage.createKnowledgeResource({
+        organisationId: getOrgId(req),
         name, description, filename: file.filename,
         originalName: file.originalname, mimeType: file.mimetype,
         filePath: file.path, extractedText,
@@ -1003,10 +1033,10 @@ export async function registerRoutes(
 
   app.delete("/api/knowledge-resources/:id", async (req, res) => {
     try {
-      const resource = await storage.getKnowledgeResource(parseInt(String(req.params.id)));
+      const resource = await storage.getKnowledgeResource(parseInt(String(req.params.id)), getOrgId(req));
       if (!resource) return res.status(404).json({ error: "Resource not found" });
       try { fs.unlinkSync(resource.filePath); } catch {}
-      await storage.deleteKnowledgeResource(resource.id);
+      await storage.deleteKnowledgeResource(resource.id, getOrgId(req));
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete knowledge resource" });
@@ -1017,7 +1047,9 @@ export async function registerRoutes(
     res.json(DOCUMENT_TYPES);
   });
 
-  await seedEnquiriesLibrary();
+  await withRlsBypass(async () => {
+    await seedEnquiriesLibrary();
+  });
 
   app.get("/api/enquiries/library", async (req, res) => {
     try {
@@ -1455,6 +1487,7 @@ export async function registerRoutes(
 
   app.post("/api/ai/suggest", async (req, res) => {
     try {
+      if (!isAiConfigured()) return res.status(503).json(aiNotConfiguredError());
       const { question, matterContext } = req.body;
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -1479,9 +1512,11 @@ Provide clear, actionable advice. Reference relevant regulations when appropriat
           },
           {
             role: "user",
-            content: matterContext
-              ? `Matter context: ${matterContext}\n\nQuestion: ${question}`
-              : question,
+            content: redactSensitiveData(
+              matterContext
+                ? `Matter context: ${matterContext}\n\nQuestion: ${question}`
+                : question,
+            ),
           },
         ],
         stream: true,
@@ -1525,7 +1560,12 @@ Provide clear, actionable advice. Reference relevant regulations when appropriat
       if (!username || !password || !displayName) {
         return res.status(400).json({ error: "Username, password, and display name are required" });
       }
-      const existing = await storage.getUserByUsername(username);
+      const pw = validatePassword(password);
+      if (!pw.ok) return res.status(400).json({ error: pw.error });
+      const roleErr = assertFirmAssignableRole(role || "assistant");
+      if (roleErr) return res.status(400).json({ error: roleErr });
+      const orgId = getOrgId(req);
+      const existing = await storage.getUserByUsernameInOrg(username, orgId);
       if (existing) {
         return res.status(409).json({ error: "Username already exists" });
       }
@@ -1537,7 +1577,7 @@ Provide clear, actionable advice. Reference relevant regulations when appropriat
         displayName,
         role: role || "assistant",
         department,
-        organisationId: getOrgId(req),
+        organisationId: orgId,
       });
       const { passwordHash, ...safeUser } = user;
       res.status(201).json(safeUser);
@@ -1555,9 +1595,17 @@ Provide clear, actionable advice. Reference relevant regulations when appropriat
       }
       const updates: any = {};
       if (req.body.displayName) updates.displayName = req.body.displayName;
-      if (req.body.role) updates.role = req.body.role;
+      if (req.body.role) {
+        const roleErr = assertFirmAssignableRole(req.body.role);
+        if (roleErr) return res.status(400).json({ error: roleErr });
+        updates.role = req.body.role;
+      }
       if (req.body.department) updates.department = req.body.department;
-      if (req.body.password) updates.passwordHash = await bcrypt.hash(req.body.password, 10);
+      if (req.body.password) {
+        const pw = validatePassword(req.body.password);
+        if (!pw.ok) return res.status(400).json({ error: pw.error });
+        updates.passwordHash = await bcrypt.hash(req.body.password, 10);
+      }
       const updated = await storage.updateUser(id, updates);
       if (!updated) return res.status(404).json({ error: "User not found" });
       const { passwordHash, ...safeUser } = updated;
@@ -1733,6 +1781,7 @@ Provide clear, actionable advice. Reference relevant regulations when appropriat
   });
 
   registerBillingRoutes(app);
+  registerPlatformRoutes(app);
 
   return httpServer;
 }

@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import OpenAI, { toFile } from "openai";
 import { Buffer } from "node:buffer";
+import { resolveAiApiKey, resolveAiBaseUrl } from "../../ai-config";
 
 export const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY || "placeholder",
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || undefined,
+  apiKey: resolveAiApiKey() || "missing-key",
+  baseURL: resolveAiBaseUrl(),
 });
 
 /**

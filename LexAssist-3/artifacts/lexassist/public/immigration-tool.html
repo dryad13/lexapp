@@ -571,6 +571,8 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--silver);color:v
 </div>
 
 <script>
+function blockedImmigrationAi(){alert("Immigration AI from the browser is disabled. Use the practice app AI Assist instead.");return Promise.reject(new Error("AI disabled"));}
+
 // ─── DATA ──────────────────────────────────────────────────────────────────
 const VISA_BRAKE_NATIONS = ['afghan','cameroonian','myanmar','sudanese'];
 const VISA_BRAKE_SW = ['afghan'];
@@ -1201,7 +1203,7 @@ async function sendAI(q) {
   aiMsgs.push({role:'user',content:q});
   renderAI(true);
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYS,messages:aiMsgs})});
+    const r = await blockedImmigrationAi();
     const d = await r.json();
     const txt = d.content?.[0]?.text || 'Unable to get response. Please try again.';
     aiMsgs.push({role:'assistant',content:txt});

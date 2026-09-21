@@ -36,7 +36,7 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
-      command: "pnpm exec tsx tests/helpers/openai-mock-cli.ts",
+      command: `node --import tsx ${path.join(ROOT, "tests/helpers/openai-mock-cli.ts")}`,
       url: `http://127.0.0.1:${OPENAI_MOCK_PORT}/healthz`,
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
@@ -64,15 +64,17 @@ export default defineConfig({
         AI_INTEGRATIONS_OPENAI_BASE_URL: OPENAI_MOCK_BASE,
         AI_MODEL: "gpt-4o",
         AUTH_PASSWORD,
+        SEED_DEMO_USERS: "1",
+        MFA_REQUIRED_FOR_ADMINS: "0",
         PATH: `${process.env.HOME}/.local/bin:/usr/local/bin:/opt/homebrew/bin:${process.env.PATH || ""}`,
       },
     },
     {
-      command: "pnpm --filter @workspace/lexassist run dev",
+      command: `${path.join(ROOT, "artifacts/lexassist/node_modules/.bin/vite")} --host 127.0.0.1 --port ${WEB_PORT} --strictPort`,
       url: WEB_BASE,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
-      cwd: ROOT,
+      cwd: path.join(ROOT, "artifacts/lexassist"),
       env: {
         ...process.env,
         NODE_ENV: "development",

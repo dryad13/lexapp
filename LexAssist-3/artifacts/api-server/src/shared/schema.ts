@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -34,6 +34,25 @@ export const DOCUMENT_TYPES = [
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
+const FIRM_PERMISSIONS_FALSE = {
+  canManageUsers: false,
+  canViewAllMatters: false,
+  canCreateMatters: false,
+  canEditMatters: false,
+  canDeleteMatters: false,
+  canProgressStages: false,
+  canUploadDocuments: false,
+  canCompleteChecks: false,
+  canOverrideGating: false,
+  canManageSettings: false,
+  canExportData: false,
+  canViewReports: false,
+  canManageCompliance: false,
+  canViewFinancials: false,
+  canEditFinancials: false,
+  canAccessPlatform: false,
+} as const;
+
 export const ROLE_PERMISSIONS = {
   admin: {
     canManageUsers: true,
@@ -51,6 +70,7 @@ export const ROLE_PERMISSIONS = {
     canManageCompliance: true,
     canViewFinancials: true,
     canEditFinancials: true,
+    canAccessPlatform: false,
   },
   fee_earner: {
     canManageUsers: false,
@@ -68,6 +88,7 @@ export const ROLE_PERMISSIONS = {
     canManageCompliance: false,
     canViewFinancials: true,
     canEditFinancials: true,
+    canAccessPlatform: false,
   },
   assistant: {
     canManageUsers: false,
@@ -85,6 +106,7 @@ export const ROLE_PERMISSIONS = {
     canManageCompliance: false,
     canViewFinancials: false,
     canEditFinancials: false,
+    canAccessPlatform: false,
   },
   read_only: {
     canManageUsers: false,
@@ -102,10 +124,23 @@ export const ROLE_PERMISSIONS = {
     canManageCompliance: false,
     canViewFinancials: false,
     canEditFinancials: false,
+    canAccessPlatform: false,
+  },
+  platform_admin: {
+    ...FIRM_PERMISSIONS_FALSE,
+    canAccessPlatform: true,
   },
 } as const;
 
 export type UserRole = keyof typeof ROLE_PERMISSIONS;
+
+/** Firm-assignable roles (excludes platform_admin). */
+export const FIRM_USER_ROLES: UserRole[] = ["admin", "fee_earner", "assistant", "read_only"];
+
+export const ORG_STATUSES = ["active", "suspended"] as const;
+export type OrgStatus = (typeof ORG_STATUSES)[number];
+
+export const PLATFORM_ORG_NAME = "LexAssist Platform";
 
 export type MatterType = "purchase" | "sale" | "remortgage" | "visa_application" | "asylum" | "appeal" | "settlement" | "naturalisation";
 
@@ -186,6 +221,8 @@ export const organisations = pgTable("organisations", {
   subscriptionPlan: text("subscription_plan").notNull().default("basic"),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
+  isPlatform: boolean("is_platform").notNull().default(false),
+  status: text("status").notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -205,14 +242,21 @@ export type Department = (typeof DEPARTMENTS)[number];
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
+  username: text("username").notNull(),
   passwordHash: text("password_hash").notNull(),
   displayName: text("display_name").notNull(),
   role: text("role").notNull().default("assistant"),
   department: text("department").notNull().default("conveyancing"),
   organisationId: integer("organisation_id").notNull().references(() => organisations.id, { onDelete: "cascade" }),
+  mfaSecret: text("mfa_secret"),
+  mfaEnabled: boolean("mfa_enabled").notNull().default(false),
+  mfaBackupCodes: jsonb("mfa_backup_codes").$type<string[]>().default([]),
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
+  lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  orgUsernameIdx: uniqueIndex("users_org_username_idx").on(t.organisationId, t.username),
+}));
 
 export const matters = pgTable("matters", {
   id: serial("id").primaryKey(),
@@ -225,7 +269,7 @@ export const matters = pgTable("matters", {
   status: text("status").notNull().default("active"),
   currentStage: text("current_stage").notNull(),
   notes: text("notes"),
-  organisationId: integer("organisation_id").references(() => organisations.id),
+  organisationId: integer("organisation_id").notNull().references(() => organisations.id),
   lastViewedAt: timestamp("last_viewed_at"),
   isCompanyRemortgage: boolean("is_company_remortgage").default(false),
   completionDate: timestamp("completion_date"),
@@ -266,6 +310,7 @@ export const reminders = pgTable("reminders", {
 
 export const journalEntries = pgTable("journal_entries", {
   id: serial("id").primaryKey(),
+  organisationId: integer("organisation_id").notNull().references(() => organisations.id, { onDelete: "cascade" }),
   userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   content: text("content"),
@@ -279,6 +324,7 @@ export const journalEntries = pgTable("journal_entries", {
 
 export const timeEntries = pgTable("time_entries", {
   id: serial("id").primaryKey(),
+  organisationId: integer("organisation_id").notNull().references(() => organisations.id, { onDelete: "cascade" }),
   journalEntryId: integer("journal_entry_id").notNull().references(() => journalEntries.id, { onDelete: "cascade" }),
   description: text("description").notNull(),
   minutes: integer("minutes").notNull(),
@@ -328,6 +374,7 @@ export const auditLogs = pgTable("audit_logs", {
 
 export const knowledgeResources = pgTable("knowledge_resources", {
   id: serial("id").primaryKey(),
+  organisationId: integer("organisation_id").notNull().references(() => organisations.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
   filename: text("filename").notNull(),
@@ -340,6 +387,7 @@ export const knowledgeResources = pgTable("knowledge_resources", {
 
 export const enquiriesLibrary = pgTable("enquiries_library", {
   id: serial("id").primaryKey(),
+  organisationId: integer("organisation_id").references(() => organisations.id, { onDelete: "cascade" }),
   category: text("category").notNull(),
   subcategory: text("subcategory"),
   title: text("title").notNull(),
@@ -405,6 +453,7 @@ export const controlChecks = pgTable("control_checks", {
 
 export const ruleTemplates = pgTable("rule_templates", {
   id: serial("id").primaryKey(),
+  organisationId: integer("organisation_id").references(() => organisations.id, { onDelete: "cascade" }),
   moduleType: text("module_type").notNull().default("conveyancing"),
   matterType: text("matter_type").notNull().default("purchase"),
   stage: text("stage").notNull(),
@@ -430,6 +479,7 @@ export const riskAssessments = pgTable("risk_assessments", {
 
 export const conversations = pgTable("conversations", {
   id: serial("id").primaryKey(),
+  organisationId: integer("organisation_id").notNull().references(() => organisations.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

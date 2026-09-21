@@ -47,6 +47,25 @@ export const DOCUMENT_TYPES = [
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
+const FIRM_PERMISSIONS_FALSE = {
+  canManageUsers: false,
+  canViewAllMatters: false,
+  canCreateMatters: false,
+  canEditMatters: false,
+  canDeleteMatters: false,
+  canProgressStages: false,
+  canUploadDocuments: false,
+  canCompleteChecks: false,
+  canOverrideGating: false,
+  canManageSettings: false,
+  canExportData: false,
+  canViewReports: false,
+  canManageCompliance: false,
+  canViewFinancials: false,
+  canEditFinancials: false,
+  canAccessPlatform: false,
+} as const;
+
 export const ROLE_PERMISSIONS = {
   admin: {
     canManageUsers: true,
@@ -64,6 +83,7 @@ export const ROLE_PERMISSIONS = {
     canManageCompliance: true,
     canViewFinancials: true,
     canEditFinancials: true,
+    canAccessPlatform: false,
   },
   fee_earner: {
     canManageUsers: false,
@@ -81,6 +101,7 @@ export const ROLE_PERMISSIONS = {
     canManageCompliance: false,
     canViewFinancials: true,
     canEditFinancials: true,
+    canAccessPlatform: false,
   },
   assistant: {
     canManageUsers: false,
@@ -98,6 +119,7 @@ export const ROLE_PERMISSIONS = {
     canManageCompliance: false,
     canViewFinancials: false,
     canEditFinancials: false,
+    canAccessPlatform: false,
   },
   read_only: {
     canManageUsers: false,
@@ -115,12 +137,19 @@ export const ROLE_PERMISSIONS = {
     canManageCompliance: false,
     canViewFinancials: false,
     canEditFinancials: false,
+    canAccessPlatform: false,
+  },
+  platform_admin: {
+    ...FIRM_PERMISSIONS_FALSE,
+    canAccessPlatform: true,
   },
 } as const;
 
 export type UserRole = keyof typeof ROLE_PERMISSIONS;
 
+/** Firm-assignable roles shown in Users UI (excludes platform_admin). */
 export const USER_ROLES: UserRole[] = ["admin", "fee_earner", "assistant", "read_only"];
+export const FIRM_USER_ROLES = USER_ROLES;
 
 export const DEPARTMENTS = ["conveyancing", "immigration", "both"] as const;
 export type Department = (typeof DEPARTMENTS)[number];
@@ -260,6 +289,7 @@ export type Reminder = {
 
 export type JournalEntry = {
   id: number;
+  organisationId?: number;
   userId?: number | null;
   title: string;
   content?: string | null;
@@ -273,6 +303,7 @@ export type JournalEntry = {
 
 export type TimeEntry = {
   id: number;
+  organisationId?: number;
   journalEntryId: number;
   description: string;
   minutes: number;

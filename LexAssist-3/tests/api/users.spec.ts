@@ -30,7 +30,7 @@ describe("users", () => {
       body: JSON.stringify({
         username: `test.user.${suffix}`,
         displayName: `Test User ${suffix}`,
-        password: "TestPass12",
+        password: "TestPass12ab",
         role: "assistant",
         department: "conveyancing",
       }),

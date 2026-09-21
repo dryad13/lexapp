@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -99,19 +99,23 @@ export const organisations = pgTable("organisations", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   subscriptionPlan: text("subscription_plan").notNull().default("basic"),
+  isPlatform: boolean("is_platform").notNull().default(false),
+  status: text("status").notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
+  username: text("username").notNull(),
   passwordHash: text("password_hash").notNull(),
   displayName: text("display_name").notNull(),
   role: text("role").notNull().default("assistant"),
   organisationId: integer("organisation_id").notNull().references(() => organisations.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  orgUsernameIdx: uniqueIndex("users_org_username_idx").on(t.organisationId, t.username),
+}));
 
 export const matters = pgTable("matters", {
   id: serial("id").primaryKey(),
@@ -124,7 +128,7 @@ export const matters = pgTable("matters", {
   status: text("status").notNull().default("active"),
   currentStage: text("current_stage").notNull(),
   notes: text("notes"),
-  organisationId: integer("organisation_id").references(() => organisations.id),
+  organisationId: integer("organisation_id").notNull().references(() => organisations.id),
   lastViewedAt: timestamp("last_viewed_at"),
   isCompanyRemortgage: boolean("is_company_remortgage").default(false),
   completionDate: timestamp("completion_date"),
@@ -165,6 +169,7 @@ export const reminders = pgTable("reminders", {
 
 export const journalEntries = pgTable("journal_entries", {
   id: serial("id").primaryKey(),
+  organisationId: integer("organisation_id").notNull().references(() => organisations.id, { onDelete: "cascade" }),
   userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   content: text("content"),
@@ -178,6 +183,7 @@ export const journalEntries = pgTable("journal_entries", {
 
 export const timeEntries = pgTable("time_entries", {
   id: serial("id").primaryKey(),
+  organisationId: integer("organisation_id").notNull().references(() => organisations.id, { onDelete: "cascade" }),
   journalEntryId: integer("journal_entry_id").notNull().references(() => journalEntries.id, { onDelete: "cascade" }),
   description: text("description").notNull(),
   minutes: integer("minutes").notNull(),
@@ -226,6 +232,7 @@ export const auditLogs = pgTable("audit_logs", {
 
 export const knowledgeResources = pgTable("knowledge_resources", {
   id: serial("id").primaryKey(),
+  organisationId: integer("organisation_id").notNull().references(() => organisations.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
   filename: text("filename").notNull(),
@@ -238,6 +245,7 @@ export const knowledgeResources = pgTable("knowledge_resources", {
 
 export const enquiriesLibrary = pgTable("enquiries_library", {
   id: serial("id").primaryKey(),
+  organisationId: integer("organisation_id").references(() => organisations.id, { onDelete: "cascade" }),
   category: text("category").notNull(),
   subcategory: text("subcategory"),
   title: text("title").notNull(),
@@ -303,6 +311,7 @@ export const controlChecks = pgTable("control_checks", {
 
 export const ruleTemplates = pgTable("rule_templates", {
   id: serial("id").primaryKey(),
+  organisationId: integer("organisation_id").references(() => organisations.id, { onDelete: "cascade" }),
   moduleType: text("module_type").notNull().default("conveyancing"),
   matterType: text("matter_type").notNull().default("purchase"),
   stage: text("stage").notNull(),

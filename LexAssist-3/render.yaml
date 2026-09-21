@@ -1,4 +1,4 @@
-# Render Blueprint for LexAssist-3 (single web service + Postgres)
+# Render Blueprint for LexAssist-3 (web + Postgres). Redis is a hard prerequisite.
 services:
   - type: web
     name: lexassist
@@ -20,14 +20,22 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
-      # Set in the Render dashboard (no Terraform in this round):
-      # REDIS_URL, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID, DATABASE_SSL=true
-      # Redis is not provisioned yet. While REQUIRE_REDIS is "0" the service
-      # degrades to in-memory sessions, rate limiting and job queues instead of
-      # exiting at boot. Flip to "1" once REDIS_URL points at a real instance.
+      # Provision Redis in the Render dashboard (or external) and set REDIS_URL before deploy.
+      # Boot exits if Redis is unreachable while REQUIRE_REDIS=1.
       - key: REQUIRE_REDIS
-        value: "0"
+        value: "1"
       - key: REDIS_URL
+        sync: false
+      - key: SEED_DEMO_USERS
+        value: "0"
+      - key: MFA_REQUIRED_FOR_ADMINS
+        value: "1"
+      - key: PLATFORM_ADMIN_USER
+        sync: false
+      - key: PLATFORM_ADMIN_PASS
+        sync: false
+      # Comma-separated browser origins allowed for credentialed CORS, e.g. https://app.example.com
+      - key: CORS_ORIGINS
         sync: false
       - key: STRIPE_SECRET_KEY
         sync: false
@@ -37,7 +45,6 @@ services:
         sync: false
       - key: DATABASE_SSL
         value: "true"
-      # Keep false on Render managed Postgres (self-signed chain). Set true only with a private CA.
       - key: DATABASE_SSL_REJECT_UNAUTHORIZED
         value: "false"
 

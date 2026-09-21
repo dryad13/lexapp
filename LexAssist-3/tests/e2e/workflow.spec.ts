@@ -2,13 +2,10 @@ import { test, expect } from "./helpers";
 
 async function createPurchaseMatter(page: import("@playwright/test").Page) {
   return page.evaluate(async () => {
-    const token = localStorage.getItem("conveyflow_auth_token");
     const res = await fetch("/api/matters", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: `Workflow ${Date.now()}`,
         type: "purchase",
@@ -19,6 +16,7 @@ async function createPurchaseMatter(page: import("@playwright/test").Page) {
         status: "active",
       }),
     });
+    if (!res.ok) throw new Error(`create matter failed: ${res.status}`);
     return res.json();
   });
 }
@@ -34,47 +32,21 @@ test.describe("workflow + compliance", () => {
     await expect(page.getByText(/compliance|check|AML|ID/i).first()).toBeVisible({ timeout: 15_000 });
   });
 
-  test.fail("stage progression PATCH uses conveyflow auth token @broken", async ({
-    authedPage: page,
-  }) => {
+  test("stage progression PATCH works with cookie session", async ({ authedPage: page }) => {
     const matter = await createPurchaseMatter(page);
     await page.goto(`/matters/${matter.id}`);
 
-    // Simulate the buggy updateStageMutation path: wrong localStorage key
     const status = await page.evaluate(async (matterId) => {
-      const wrong = localStorage.getItem("auth_token");
-      const right = localStorage.getItem("conveyflow_auth_token");
-      // Reproduce product bug: matter-detail uses auth_token
       const res = await fetch(`/api/matters/${matterId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(wrong ? { Authorization: `Bearer ${wrong}` } : {}),
-        },
-        body: JSON.stringify({ currentStage: "Client Info" }),
-      });
-      return { status: res.status, hasWrong: !!wrong, hasRight: !!right };
-    }, matter.id);
-
-    expect(status.hasRight).toBe(true);
-    // With correct token this would be 409 or 200; with wrong/missing token it's 401
-    // Correct product behavior: UI should send conveyflow_auth_token → not 401
-    const correct = await page.evaluate(async (matterId) => {
-      const token = localStorage.getItem("conveyflow_auth_token");
-      const res = await fetch(`/api/matters/${matterId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentStage: "Client Info" }),
       });
       return res.status;
     }, matter.id);
-    expect([200, 409]).toContain(correct);
 
-    // This assertion documents the bug: using auth_token yields 401
-    expect(status.status).not.toBe(401);
+    expect([200, 409]).toContain(status);
   });
 
   test("inline reminder and draft email from matter detail", async ({ authedPage: page }) => {

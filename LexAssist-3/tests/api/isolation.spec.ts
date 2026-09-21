@@ -97,4 +97,105 @@ describe("isolation", () => {
     });
     expect(cross.status).toBe(404);
   });
+
+  it("cross-org knowledge resource is invisible", async () => {
+    const form = new FormData();
+    form.append("file", new Blob(["firm-a-secret"], { type: "text/plain" }), "secret.txt");
+    const upload = await apiFetch("/api/knowledge-resources", {
+      method: "POST",
+      token: admin.token,
+      body: form,
+    });
+    expect([200, 201]).toContain(upload.status);
+    const resource = await json(upload);
+
+    const otherList = await apiFetch("/api/knowledge-resources", { token: other.token });
+    expect(otherList.status).toBe(200);
+    const items = await json(otherList);
+    expect(items.find((r: any) => r.id === resource.id)).toBeUndefined();
+
+    const otherDel = await apiFetch(`/api/knowledge-resources/${resource.id}`, {
+      method: "DELETE",
+      token: other.token,
+    });
+    expect(otherDel.status).toBe(404);
+  });
+
+  it("cross-org journal entry is 404", async () => {
+    const create = await apiFetch("/api/journal-entries", {
+      method: "POST",
+      token: admin.token,
+      body: JSON.stringify({
+        title: "Firm A note",
+        activity: "Review",
+        learning: "Isolation",
+        reflection: "Private",
+        category: "general",
+      }),
+    });
+    expect([200, 201]).toContain(create.status);
+    const entry = await json(create);
+
+    const cross = await apiFetch(`/api/journal-entries/${entry.id}`, { token: other.token });
+    expect(cross.status).toBe(404);
+  });
+
+  it("cross-org conversation is 404", async () => {
+    const create = await apiFetch("/api/conversations", {
+      method: "POST",
+      token: admin.token,
+      body: JSON.stringify({ title: "Firm A chat" }),
+    });
+    expect([200, 201]).toContain(create.status);
+    const convo = await json(create);
+
+    const cross = await apiFetch(`/api/conversations/${convo.id}`, { token: other.token });
+    expect(cross.status).toBe(404);
+  });
+
+  it("two orgs can share the same username", async () => {
+    const suffix = Date.now().toString(36);
+    const name = `shared.user.${suffix}`;
+    const createA = await apiFetch("/api/users", {
+      method: "POST",
+      token: admin.token,
+      body: JSON.stringify({
+        username: name,
+        displayName: "Shared A",
+        password: "SharedPass12",
+        role: "assistant",
+      }),
+    });
+    expect([200, 201]).toContain(createA.status);
+
+    const createB = await apiFetch("/api/users", {
+      method: "POST",
+      token: other.token,
+      body: JSON.stringify({
+        username: name,
+        displayName: "Shared B",
+        password: "SharedPass12",
+        role: "assistant",
+      }),
+    });
+    expect([200, 201]).toContain(createB.status);
+
+    const ambiguous = await apiFetch("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username: name, password: "SharedPass12" }),
+    });
+    expect(ambiguous.status).toBe(401);
+
+    const withOrg = await apiFetch("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        username: name,
+        password: "SharedPass12",
+        organisation: "Gardner Champion",
+      }),
+    });
+    expect(withOrg.status).toBe(200);
+    const body = await json(withOrg);
+    expect(body.organisationId).toBe(admin.organisationId);
+  });
 });

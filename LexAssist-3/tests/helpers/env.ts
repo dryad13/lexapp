@@ -43,6 +43,7 @@ export const SEED_USERS = {
   readOnly: { username: "readonly", password: "Readonly12", role: "read_only" },
   zaid: { username: "zaid.khan", password: process.env.AUTH_PASSWORD || "HU51BAN", role: "admin" },
   otherAdmin: { username: "other.admin", password: "Other12", role: "admin" },
+  platformAdmin: { username: "platform.admin", password: "PlatformAdmin12", role: "platform_admin" },
 } as const;
 
 export function apiEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
@@ -62,6 +63,8 @@ export function apiEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
     AI_INTEGRATIONS_OPENAI_BASE_URL: OPENAI_MOCK_BASE,
     AI_MODEL: "gpt-4o",
     AUTH_PASSWORD: SEED_USERS.zaid.password,
+    SEED_DEMO_USERS: "1",
+    MFA_REQUIRED_FOR_ADMINS: "0",
     ...extra,
   };
 }

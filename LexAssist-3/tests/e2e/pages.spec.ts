@@ -54,29 +54,17 @@ test.describe("global pages", () => {
     await expect(frame.locator("body")).toBeVisible({ timeout: 20_000 });
   });
 
-  test.fail("immigration AI panel works without browser Anthropic key @broken", async ({
-    authedPage: page,
-  }) => {
+  test("immigration AI from browser is disabled", async ({ authedPage: page }) => {
     await page.goto("/immigration");
-    // Correct product: immigration AI should be proxied via LexAssist backend with a server key.
-    // Today the static tool calls Anthropic directly from the browser with no x-api-key → fails.
-    const result = await page.evaluate(async () => {
-      try {
-        const r = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 16,
-            messages: [{ role: "user", content: "ping" }],
-          }),
-        });
-        return { ok: r.ok, status: r.status };
-      } catch (e: any) {
-        return { ok: false, status: 0, error: String(e?.message || e) };
-      }
-    });
-    expect(result.ok).toBe(true);
+    const frame = page.frameLocator("iframe").first();
+    await expect(frame.locator("body")).toBeVisible({ timeout: 20_000 });
+    const src = await page.locator("iframe").first().getAttribute("src");
+    expect(src).toBeTruthy();
+    const toolRes = await page.request.get(src!.startsWith("http") ? src! : new URL(src!, page.url()).toString());
+    expect(toolRes.ok()).toBe(true);
+    const html = await toolRes.text();
+    expect(html).toContain("blockedImmigrationAi");
+    expect(html).not.toMatch(/fetch\(\s*['"]https:\/\/api\.anthropic\.com/);
   });
 
   test("users page for admin", async ({ authedPage: page }) => {

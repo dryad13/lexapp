@@ -1,6 +1,22 @@
 import { test, expect, loginAs, SEED_USERS } from "./helpers";
 
-const API_BASE = process.env.TEST_API_BASE || "http://127.0.0.1:8080";
+async function createMatterViaCookie(
+  page: import("@playwright/test").Page,
+  body: Record<string, unknown>,
+) {
+  const result = await page.evaluate(async (payload) => {
+    const res = await fetch("/api/matters", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, json };
+  }, body);
+  expect(result.ok, `create matter failed: ${result.status} ${JSON.stringify(result.json)}`).toBeTruthy();
+  return result.json as { id: number };
+}
 
 test.describe("immigration workflow UI", () => {
   test("create flow requires practice area then type", async ({ authedPage: page }) => {
@@ -26,24 +42,13 @@ test.describe("immigration workflow UI", () => {
   test("immigration matter shows practice badge, stages, compliance; hides enquiries builder", async ({
     authedPage: page,
   }) => {
-    const matter = await page.evaluate(async () => {
-      const token = localStorage.getItem("conveyflow_auth_token");
-      const res = await fetch("/api/matters", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: `Imm Detail ${Date.now()}`,
-          type: "visa_application",
-          clientName: "Visa Client",
-          propertyAddress: "2 Visa Lane",
-          currentStage: "Onboarding / Induction",
-          status: "active",
-        }),
-      });
-      return res.json();
+    const matter = await createMatterViaCookie(page, {
+      title: `Imm Detail ${Date.now()}`,
+      type: "visa_application",
+      clientName: "Visa Client",
+      propertyAddress: "2 Visa Lane",
+      currentStage: "Onboarding / Induction",
+      status: "active",
     });
 
     await page.goto(`/matters/${matter.id}`);
@@ -59,57 +64,37 @@ test.describe("immigration workflow UI", () => {
   });
 
   test("conveyancing matter still shows Conveyancing badge", async ({ authedPage: page }) => {
-    const matter = await page.evaluate(async () => {
-      const token = localStorage.getItem("conveyflow_auth_token");
-      const res = await fetch("/api/matters", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: `Conv ${Date.now()}`,
-          type: "purchase",
-          clientName: "Buyer",
-          propertyAddress: "9 High St",
-          currentStage: "Onboarding",
-          status: "active",
-        }),
-      });
-      return res.json();
+    const matter = await createMatterViaCookie(page, {
+      title: `Conv ${Date.now()}`,
+      type: "purchase",
+      clientName: "Buyer",
+      propertyAddress: "9 High St",
+      currentStage: "Onboarding",
+      status: "active",
     });
     await page.goto(`/matters/${matter.id}`);
     await expect(page.getByTestId("badge-matter-practice-area")).toContainText("Conveyancing");
   });
 
-  test("read_only cannot mutate immigration matter", async ({ page }) => {
-    const adminLogin = await page.request.post(`${API_BASE}/api/auth/login`, {
-      data: { username: SEED_USERS.admin.username, password: SEED_USERS.admin.password },
+  test("read_only cannot mutate immigration matter", async ({ page, context }) => {
+    await loginAs(page, SEED_USERS.admin.username, SEED_USERS.admin.password);
+    const matter = await createMatterViaCookie(page, {
+      title: `RO View ${Date.now()}`,
+      type: "visa_application",
+      clientName: "RO Client",
+      propertyAddress: "3 Read Only Rd",
+      currentStage: "Onboarding / Induction",
+      status: "active",
     });
-    const adminAuth = await adminLogin.json();
-    const matterRes = await page.request.post(`${API_BASE}/api/matters`, {
-      headers: {
-        Authorization: `Bearer ${adminAuth.token}`,
-        "Content-Type": "application/json",
-      },
-      data: {
-        title: `RO View ${Date.now()}`,
-        type: "visa_application",
-        clientName: "RO Client",
-        propertyAddress: "3 Read Only Rd",
-        currentStage: "Onboarding / Induction",
-        status: "active",
-      },
-    });
-    expect(matterRes.ok()).toBeTruthy();
-    const matterBody = await matterRes.json();
 
+    await context.clearCookies();
+    await page.evaluate(() => localStorage.clear());
     await loginAs(page, SEED_USERS.readOnly.username, SEED_USERS.readOnly.password);
 
     await page.goto("/matters");
     await expect(page.getByTestId("button-new-matter")).toHaveCount(0);
 
-    await page.goto(`/matters/${matterBody.id}`);
+    await page.goto(`/matters/${matter.id}`);
     await expect(page.getByTestId("badge-matter-practice-area")).toContainText("Immigration");
     await expect(page.getByTestId("button-edit-matter")).toHaveCount(0);
     await expect(page.getByTestId("tab-finances")).toHaveCount(0);

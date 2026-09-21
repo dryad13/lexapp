@@ -38,6 +38,17 @@ export REQUIRE_REDIS=1
 pnpm test:qa             # local one-shot: typecheck + hardening + api + coverage + e2e smoke
 ```
 
+## Production go-live (multi-tenant)
+
+See [MULTI_TENANT_ONBOARDING.md](./MULTI_TENANT_ONBOARDING.md) and [SECURITY.md](./SECURITY.md).
+
+- Production must set `REQUIRE_REDIS=1` (no in-memory session fallback).
+- Boot must run `initDatabase()` so RLS policies stay applied.
+- Onboard firms via `/platform` (or break-glass `pnpm --filter @workspace/api-server create-org`).
+- Bootstrap platform admin with `PLATFORM_ADMIN_USER` / `PLATFORM_ADMIN_PASS` when `SEED_DEMO_USERS=0`.
+- Stripe metadata must include `organisationId` for each firm.
+- Set `CORS_ORIGINS`, `SEED_DEMO_USERS=0`, and `MFA_REQUIRED_FOR_ADMINS=1`.
+
 ## CI
 
 GitHub Actions: [`.github/workflows/lexassist-qa.yml`](../../.github/workflows/lexassist-qa.yml) runs G1–G8 on PR/push to `main`.

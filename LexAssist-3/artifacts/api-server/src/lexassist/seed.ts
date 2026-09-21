@@ -1,11 +1,19 @@
 import { db } from "./db";
-import { matters, tasks, draftEmails, reminders, WORKFLOW_STAGES, organisations, users, ruleTemplates, controlChecks } from "../shared/schema";
+import { matters, tasks, draftEmails, reminders, WORKFLOW_STAGES, organisations, users, ruleTemplates, controlChecks, PLATFORM_ORG_NAME } from "../shared/schema";
 import type { MatterType } from "../shared/schema";
 import { LIVE_MATTERS } from "./live-data";
 import { eq, and, gte, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 const DEFAULT_ORG_NAME = "Gardner Champion";
+
+const PLATFORM_ADMIN_SEED = {
+  username: "platform.admin",
+  password: "PlatformAdmin12",
+  displayName: "Platform Admin",
+  role: "platform_admin" as const,
+  department: "both" as const,
+};
 
 const DEFAULT_USERS = [
   { username: "zaid.khan", password: process.env.AUTH_PASSWORD || "HU51BAN", displayName: "Zaid Khan", role: "admin" as const },
@@ -132,18 +140,91 @@ const IMMIGRATION_RULES: { matterType: string; stage: string; ruleKey: string; r
     })),
   );
 
+async function ensurePlatformOrganisationAndAdmin() {
+  const seedPlatform =
+    process.env.SEED_PLATFORM_ADMIN === "1" ||
+    shouldSeedDemoUsers() ||
+    !!(process.env.PLATFORM_ADMIN_USER && process.env.PLATFORM_ADMIN_PASS);
+
+  let platformOrg = (await db.select().from(organisations).where(eq(organisations.isPlatform, true)))[0];
+  if (!platformOrg) {
+    const byName = await db.select().from(organisations).where(eq(organisations.name, PLATFORM_ORG_NAME));
+    if (byName[0]) {
+      const [updated] = await db
+        .update(organisations)
+        .set({ isPlatform: true, status: "active", updatedAt: new Date() })
+        .where(eq(organisations.id, byName[0].id))
+        .returning();
+      platformOrg = updated;
+    } else if (seedPlatform || process.env.PLATFORM_ADMIN_USER) {
+      const [created] = await db
+        .insert(organisations)
+        .values({
+          name: PLATFORM_ORG_NAME,
+          isPlatform: true,
+          status: "active",
+          subscriptionPlan: "pro",
+        })
+        .returning();
+      platformOrg = created;
+      console.log(`Created platform organisation: ${PLATFORM_ORG_NAME}`);
+    }
+  }
+
+  if (!platformOrg || !seedPlatform) return;
+
+  const username = process.env.PLATFORM_ADMIN_USER || PLATFORM_ADMIN_SEED.username;
+  const password = process.env.PLATFORM_ADMIN_PASS || PLATFORM_ADMIN_SEED.password;
+  const displayName = process.env.PLATFORM_ADMIN_DISPLAY || PLATFORM_ADMIN_SEED.displayName;
+
+  const [existing] = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.username, username), eq(users.organisationId, platformOrg.id)));
+
+  if (!existing) {
+    await db.insert(users).values({
+      username,
+      passwordHash: await bcrypt.hash(password, 10),
+      displayName,
+      role: "platform_admin",
+      department: "both",
+      organisationId: platformOrg.id,
+    });
+    console.log(`Seeded platform admin: ${username}`);
+  } else if (existing.role !== "platform_admin") {
+    await db.update(users).set({ role: "platform_admin" }).where(eq(users.id, existing.id));
+  }
+}
+
 async function seedOrganisationAndUsers() {
   const existingOrgs = await db.select().from(organisations);
   let orgId: number;
 
-  if (existingOrgs.length === 0) {
+  const defaultOrg = existingOrgs.find((o) => o.name === DEFAULT_ORG_NAME && !o.isPlatform);
+  if (!defaultOrg) {
     const [org] = await db.insert(organisations).values({
       name: DEFAULT_ORG_NAME,
+      isPlatform: false,
+      status: "active",
     }).returning();
     orgId = org.id;
     console.log(`Created default organisation: ${DEFAULT_ORG_NAME}`);
   } else {
-    orgId = existingOrgs[0].id;
+    orgId = defaultOrg.id;
+  }
+
+  await ensurePlatformOrganisationAndAdmin();
+
+  const seedDemo = shouldSeedDemoUsers();
+  if (!seedDemo) {
+    console.log("SEED_DEMO_USERS disabled — skipping demo user passwords");
+    const mattersWithoutOrg = await db.select().from(matters).where(sql`organisation_id IS NULL`);
+    if (mattersWithoutOrg.length > 0) {
+      await db.update(matters).set({ organisationId: orgId }).where(sql`organisation_id IS NULL`);
+      console.log(`Migrated ${mattersWithoutOrg.length} matters to organisation ${DEFAULT_ORG_NAME}`);
+    }
+    return orgId;
   }
 
   const existingUsers = await db.select().from(users);
@@ -189,9 +270,14 @@ async function seedOrganisationAndUsers() {
   }
 
   const SECOND_ORG_NAME = "Isolation Test Firm";
-  let second = existingOrgs.find((o) => o.name === SECOND_ORG_NAME);
+  const refreshedOrgs = await db.select().from(organisations);
+  let second = refreshedOrgs.find((o) => o.name === SECOND_ORG_NAME);
   if (!second) {
-    const [createdOrg] = await db.insert(organisations).values({ name: SECOND_ORG_NAME }).returning();
+    const [createdOrg] = await db.insert(organisations).values({
+      name: SECOND_ORG_NAME,
+      isPlatform: false,
+      status: "active",
+    }).returning();
     second = createdOrg;
     console.log(`Created second organisation: ${SECOND_ORG_NAME}`);
   }
@@ -216,6 +302,13 @@ async function seedOrganisationAndUsers() {
   }
 
   return orgId;
+}
+
+function shouldSeedDemoUsers(): boolean {
+  if (process.env.SEED_DEMO_USERS === "0") return false;
+  if (process.env.SEED_DEMO_USERS === "1") return true;
+  if (process.env.NODE_ENV === "production") return false;
+  return true;
 }
 
 async function seedRuleTemplates() {

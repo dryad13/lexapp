@@ -23,22 +23,37 @@ import Landing from "@/pages/landing";
 import UsersPage from "@/pages/users";
 import ComplianceDashboard from "@/pages/compliance-dashboard";
 import ImmigrationAssessment from "@/pages/immigration-assessment";
+import PlatformPage from "@/pages/platform";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Scale } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 
-function RedirectToDashboard() {
+function RedirectToHome() {
+  const { role } = useAuth();
   const [, setLocation] = useLocation();
-  useEffect(() => { setLocation("/dashboard"); }, []);
+  useEffect(() => {
+    setLocation(role === "platform_admin" ? "/platform" : "/dashboard");
+  }, [role, setLocation]);
   return null;
 }
 
 function AuthenticatedRouter() {
+  const { role } = useAuth();
+  if (role === "platform_admin") {
+    return (
+      <Switch>
+        <Route path="/" component={RedirectToHome} />
+        <Route path="/login" component={RedirectToHome} />
+        <Route path="/platform" component={PlatformPage} />
+        <Route component={PlatformPage} />
+      </Switch>
+    );
+  }
   return (
     <Switch>
-      <Route path="/"            component={RedirectToDashboard} />
-      <Route path="/login"       component={RedirectToDashboard} />
+      <Route path="/"            component={RedirectToHome} />
+      <Route path="/login"       component={RedirectToHome} />
       <Route path="/dashboard"   component={Dashboard} />
       <Route path="/matters"     component={Matters} />
       <Route path="/matters/:id" component={MatterDetail} />
@@ -60,6 +75,7 @@ const roleLabelMap: Record<string, string> = {
   fee_earner: "Fee Earner",
   assistant:  "Assistant",
   read_only:  "Read Only",
+  platform_admin: "Platform Admin",
 };
 
 function AppContent() {
@@ -80,7 +96,7 @@ function AppContent() {
       displayName:    data.displayName,
       department:     data.department,
     });
-    setLocation("/dashboard");
+    setLocation(data.role === "platform_admin" ? "/platform" : "/dashboard");
   };
 
   const handleLogout = async () => {
@@ -132,6 +148,62 @@ function AppContent() {
 
   return (
     <TooltipProvider>
+      {role === "platform_admin" ? (
+        <div className="flex h-screen w-full flex-col">
+          <header
+            className="flex items-center justify-between gap-2 px-4 py-2.5 sticky top-0 z-50"
+            style={{
+              backgroundColor: "rgba(245,240,230,0.88)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              borderBottom: "1px solid rgba(27,77,62,0.12)",
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <BrandLogo size={40} />
+              <span className="text-sm font-medium" style={{ color: "#1B4D3E" }}>
+                Platform
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {displayName && (
+                <span className="text-sm hidden sm:inline" style={{ color: "rgba(27,77,62,0.60)" }}>
+                  {displayName}
+                </span>
+              )}
+              {role &&
+                displayName?.toLowerCase() !== (roleLabelMap[role] || role).toLowerCase() && (
+                  <Badge
+                    variant="outline"
+                    className="text-xs capitalize"
+                    style={{
+                      borderColor: "rgba(27,77,62,0.25)",
+                      color: "#1B4D3E",
+                      backgroundColor: "rgba(27,77,62,0.06)",
+                    }}
+                  >
+                    {roleLabelMap[role] || role}
+                  </Badge>
+                )}
+              <ThemeToggle />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleLogout}
+                aria-label="Sign out"
+                title="Sign out"
+                style={{ color: "#1B4D3E" }}
+                className="hover:bg-primary/10"
+              >
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+          </header>
+          <main className="flex-1 overflow-auto">
+            <AuthenticatedRouter />
+          </main>
+        </div>
+      ) : (
       <SidebarProvider style={style as React.CSSProperties}>
         <div className="flex h-screen w-full">
           <AppSidebar />
@@ -161,19 +233,20 @@ function AppContent() {
                     {displayName}
                   </span>
                 )}
-                {role && (
-                  <Badge
-                    variant="outline"
-                    className="text-xs capitalize"
-                    style={{
-                      borderColor: "rgba(27,77,62,0.25)",
-                      color: "#1B4D3E",
-                      backgroundColor: "rgba(27,77,62,0.06)",
-                    }}
-                  >
-                    {roleLabelMap[role] || role}
-                  </Badge>
-                )}
+                {role &&
+                  displayName?.toLowerCase() !== (roleLabelMap[role] || role).toLowerCase() && (
+                    <Badge
+                      variant="outline"
+                      className="text-xs capitalize"
+                      style={{
+                        borderColor: "rgba(27,77,62,0.25)",
+                        color: "#1B4D3E",
+                        backgroundColor: "rgba(27,77,62,0.06)",
+                      }}
+                    >
+                      {roleLabelMap[role] || role}
+                    </Badge>
+                  )}
                 <ThemeToggle />
                 <Button
                   variant="ghost"
@@ -195,6 +268,7 @@ function AppContent() {
           </div>
         </div>
       </SidebarProvider>
+      )}
     </TooltipProvider>
   );
 }

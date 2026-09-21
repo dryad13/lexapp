@@ -146,7 +146,7 @@ describe("matters", () => {
       token: admin.token,
       body: JSON.stringify({
         username,
-        password: "ConvOnly12",
+        password: "ConveyOnly12",
         displayName: "Conveyancing Only",
         role: "fee_earner",
         department: "conveyancing",
@@ -154,7 +154,7 @@ describe("matters", () => {
     });
     expect(createUser.status).toBe(201);
 
-    const fe = await login(username, "ConvOnly12");
+    const fe = await login(username, "ConveyOnly12");
     const res = await apiFetch("/api/matters", {
       method: "POST",
       token: fe.token,

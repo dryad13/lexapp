@@ -42,11 +42,12 @@ describe("reminders", () => {
     expect([200, 204]).toContain(del.status);
   });
 
-  it.fails("POST /api/reminders/:id/complete returns completed reminder @broken", async () => {
+  it("POST /api/reminders/:id/complete returns completed reminder", async () => {
     const create = await json(
       await apiFetch("/api/reminders", {
         method: "POST",
         token: admin.token,
+        cookie: admin.cookie,
         body: JSON.stringify({
           matterId: matter.id,
           title: "Complete me",
@@ -58,10 +59,10 @@ describe("reminders", () => {
     const res = await apiFetch(`/api/reminders/${create.id}/complete`, {
       method: "POST",
       token: admin.token,
+      cookie: admin.cookie,
     });
     expect(res.status).toBe(200);
     const body = await json(res);
-    // Correct contract — known bug returns stale object with completed=false
     expect(body.completed).toBe(true);
   });
 });

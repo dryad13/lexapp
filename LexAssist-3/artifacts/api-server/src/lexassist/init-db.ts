@@ -26,6 +26,11 @@ export async function initDatabase() {
     );
 
     ALTER TABLE users ADD COLUMN IF NOT EXISTS department TEXT NOT NULL DEFAULT 'both';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_secret TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_backup_codes JSONB DEFAULT '[]';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP;
 
     CREATE TABLE IF NOT EXISTS matters (
       id SERIAL PRIMARY KEY,
@@ -270,6 +275,8 @@ export async function initDatabase() {
 
     ALTER TABLE organisations ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
     ALTER TABLE organisations ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
+    ALTER TABLE organisations ADD COLUMN IF NOT EXISTS is_platform BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE organisations ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
     ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS organisation_id INTEGER REFERENCES organisations(id);
     CREATE INDEX IF NOT EXISTS audit_logs_org_idx ON audit_logs(organisation_id);
 
@@ -282,6 +289,61 @@ export async function initDatabase() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
     );
+
+    ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS organisation_id INTEGER REFERENCES organisations(id) ON DELETE CASCADE;
+    ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS organisation_id INTEGER REFERENCES organisations(id) ON DELETE CASCADE;
+    ALTER TABLE knowledge_resources ADD COLUMN IF NOT EXISTS organisation_id INTEGER REFERENCES organisations(id) ON DELETE CASCADE;
+    ALTER TABLE conversations ADD COLUMN IF NOT EXISTS organisation_id INTEGER REFERENCES organisations(id) ON DELETE CASCADE;
+    ALTER TABLE enquiries_library ADD COLUMN IF NOT EXISTS organisation_id INTEGER REFERENCES organisations(id) ON DELETE CASCADE;
+    ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS organisation_id INTEGER REFERENCES organisations(id) ON DELETE CASCADE;
+
+    -- Backfill firm-owned rows from user org, else first organisation
+    UPDATE journal_entries je
+      SET organisation_id = u.organisation_id
+      FROM users u
+      WHERE je.organisation_id IS NULL AND je.user_id = u.id;
+    UPDATE journal_entries
+      SET organisation_id = (SELECT id FROM organisations ORDER BY id LIMIT 1)
+      WHERE organisation_id IS NULL AND EXISTS (SELECT 1 FROM organisations);
+    UPDATE time_entries te
+      SET organisation_id = je.organisation_id
+      FROM journal_entries je
+      WHERE te.organisation_id IS NULL AND te.journal_entry_id = je.id;
+    UPDATE time_entries
+      SET organisation_id = (SELECT id FROM organisations ORDER BY id LIMIT 1)
+      WHERE organisation_id IS NULL AND EXISTS (SELECT 1 FROM organisations);
+    UPDATE knowledge_resources
+      SET organisation_id = (SELECT id FROM organisations ORDER BY id LIMIT 1)
+      WHERE organisation_id IS NULL AND EXISTS (SELECT 1 FROM organisations);
+    UPDATE conversations
+      SET organisation_id = (SELECT id FROM organisations ORDER BY id LIMIT 1)
+      WHERE organisation_id IS NULL AND EXISTS (SELECT 1 FROM organisations);
+    UPDATE matters
+      SET organisation_id = (SELECT id FROM organisations ORDER BY id LIMIT 1)
+      WHERE organisation_id IS NULL AND EXISTS (SELECT 1 FROM organisations);
+
+    -- Shared catalogs stay NULL; firm-owned columns become NOT NULL when orgs exist
+    DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM organisations) THEN
+        ALTER TABLE journal_entries ALTER COLUMN organisation_id SET NOT NULL;
+        ALTER TABLE time_entries ALTER COLUMN organisation_id SET NOT NULL;
+        ALTER TABLE knowledge_resources ALTER COLUMN organisation_id SET NOT NULL;
+        ALTER TABLE conversations ALTER COLUMN organisation_id SET NOT NULL;
+        ALTER TABLE matters ALTER COLUMN organisation_id SET NOT NULL;
+      END IF;
+    END $$;
+
+    CREATE INDEX IF NOT EXISTS journal_entries_org_idx ON journal_entries(organisation_id);
+    CREATE INDEX IF NOT EXISTS time_entries_org_idx ON time_entries(organisation_id);
+    CREATE INDEX IF NOT EXISTS knowledge_resources_org_idx ON knowledge_resources(organisation_id);
+    CREATE INDEX IF NOT EXISTS conversations_org_idx ON conversations(organisation_id);
+    CREATE INDEX IF NOT EXISTS enquiries_library_org_idx ON enquiries_library(organisation_id);
+    CREATE INDEX IF NOT EXISTS rule_templates_org_idx ON rule_templates(organisation_id);
+
+    -- Per-org username uniqueness (drop legacy global unique if present)
+    ALTER TABLE users DROP CONSTRAINT IF EXISTS users_username_key;
+    DROP INDEX IF EXISTS users_username_key;
+    CREATE UNIQUE INDEX IF NOT EXISTS users_org_username_idx ON users(organisation_id, username);
   `);
 
   await applyTenantRls(pool);
@@ -335,13 +397,61 @@ async function applyTenantRls(pool: pg.Pool) {
       );
   `;
 
-  // Residual risk (no organisation_id this round): conversations, messages,
-  // knowledge_resources, enquiries_library, journal_entries, time_entries, rule_templates.
+  /** Shared catalog: NULL organisation_id is platform-wide; firm rows are org-scoped. */
+  const catalogPolicy = (table: string) => `
+    ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS ${table}_tenant ON ${table};
+    CREATE POLICY ${table}_tenant ON ${table}
+      USING (
+        ${RLS_BYPASS}
+        OR organisation_id IS NULL
+        OR organisation_id = ${RLS_ORG}
+      )
+      WITH CHECK (
+        ${RLS_BYPASS}
+        OR organisation_id IS NULL
+        OR organisation_id = ${RLS_ORG}
+      );
+  `;
+
+  const conversationChildPolicy = `
+    ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE messages FORCE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS messages_tenant ON messages;
+    CREATE POLICY messages_tenant ON messages
+      USING (
+        ${RLS_BYPASS}
+        OR EXISTS (
+          SELECT 1 FROM conversations c
+          WHERE c.id = messages.conversation_id
+            AND c.organisation_id IS NOT NULL
+            AND c.organisation_id = ${RLS_ORG}
+        )
+      )
+      WITH CHECK (
+        ${RLS_BYPASS}
+        OR EXISTS (
+          SELECT 1 FROM conversations c
+          WHERE c.id = messages.conversation_id
+            AND c.organisation_id IS NOT NULL
+            AND c.organisation_id = ${RLS_ORG}
+        )
+      );
+  `;
+
   await pool.query(`
     ${orgPolicy("users")}
     ${orgPolicy("matters")}
     ${orgPolicy("control_checks")}
     ${orgPolicy("risk_assessments")}
+    ${orgPolicy("journal_entries")}
+    ${orgPolicy("time_entries")}
+    ${orgPolicy("knowledge_resources")}
+    ${orgPolicy("conversations")}
+    ${catalogPolicy("enquiries_library")}
+    ${catalogPolicy("rule_templates")}
+    ${conversationChildPolicy}
     ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
     ALTER TABLE audit_logs FORCE ROW LEVEL SECURITY;
     DROP POLICY IF EXISTS audit_logs_tenant ON audit_logs;

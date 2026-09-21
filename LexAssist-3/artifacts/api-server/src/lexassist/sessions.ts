@@ -21,6 +21,10 @@ export interface SessionData {
   uaHash: string;
   ip: string;
   createdAt: number;
+  /** When true, session may only call MFA enrollment endpoints. */
+  mfaSetupOnly?: boolean;
+  /** When true, session may only change password / me / logout. */
+  mustChangePasswordOnly?: boolean;
 }
 
 function isTestEnv() {
@@ -149,6 +153,8 @@ export function attachSession(req: Request, session: LoadedSession) {
   (req as any).sessionId = session.id;
   (req as any).sessionIpChanged = session.ipChanged;
   (req as any).previousIp = session.previousIp;
+  (req as any).mfaSetupOnly = !!session.mfaSetupOnly;
+  (req as any).mustChangePasswordOnly = !!session.mustChangePasswordOnly;
 }
 
 export async function sessionMiddleware(req: Request, _res: Response, next: NextFunction) {
@@ -166,5 +172,36 @@ export function isPublicApiPath(req: Request): boolean {
   if (path === "/api/healthz") return true;
   if (path === "/api/stripe/webhook") return true;
   if (path === "/api/auth/login" || path === "/api/auth/logout" || path === "/api/auth/me") return true;
+  if (path === "/api/auth/mfa/verify") return true;
   return false;
+}
+
+const MFA_SETUP_ALLOWED = new Set([
+  "/api/auth/mfa/setup",
+  "/api/auth/mfa/confirm",
+  "/api/auth/logout",
+  "/api/auth/me",
+]);
+
+export function mfaSetupGuard(req: Request, res: Response, next: NextFunction) {
+  if (!(req as any).mfaSetupOnly) return next();
+  const path = req.originalUrl.split("?")[0];
+  if (MFA_SETUP_ALLOWED.has(path)) return next();
+  return res.status(403).json({ error: "MFA setup required", code: "MFA_SETUP_REQUIRED" });
+}
+
+const MUST_CHANGE_PASSWORD_ALLOWED = new Set([
+  "/api/auth/change-password",
+  "/api/auth/logout",
+  "/api/auth/me",
+]);
+
+export function mustChangePasswordGuard(req: Request, res: Response, next: NextFunction) {
+  if (!(req as any).mustChangePasswordOnly) return next();
+  const path = req.originalUrl.split("?")[0];
+  if (MUST_CHANGE_PASSWORD_ALLOWED.has(path)) return next();
+  return res.status(403).json({
+    error: "Password change required",
+    code: "MUST_CHANGE_PASSWORD",
+  });
 }

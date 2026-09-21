@@ -2,11 +2,6 @@ import { rateLimit, MemoryStore } from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
 import { redis, redisReady } from "./redis";
 
-function isLoopback(ip: string | undefined) {
-  if (!ip) return false;
-  return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
-}
-
 const memoryStore = new MemoryStore();
 let redisStore: RedisStore | null = null;
 
@@ -35,7 +30,10 @@ export const loginRateLimit = rateLimit({
   limit: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => process.env.APP_ENV === "test" && isLoopback(req.ip),
+  // In APP_ENV=test, skip by default so lockout suites can exceed 5 attempts.
+  // Opt in with header X-Test-Enable-Rate-Limit: 1 (see rate-limit.spec.ts).
+  skip: (req) =>
+    process.env.APP_ENV === "test" && req.get("x-test-enable-rate-limit") !== "1",
   store: dualStore as any,
   handler: (_req, res) => {
     res.status(429).json({ error: "Too many login attempts. Try again in a minute." });

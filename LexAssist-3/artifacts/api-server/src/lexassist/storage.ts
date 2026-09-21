@@ -46,9 +46,14 @@ function encryptEmail<T extends Partial<InsertDraftEmail>>(data: T): T {
 export interface IStorage {
   getOrganisation(id: number): Promise<Organisation | undefined>;
   createOrganisation(data: InsertOrganisation): Promise<Organisation>;
+  updateOrganisation(id: number, data: Partial<InsertOrganisation> & { status?: string; subscriptionPlan?: string; updatedAt?: Date }): Promise<Organisation | undefined>;
   getOrganisations(): Promise<Organisation[]>;
+  getFirmOrganisations(): Promise<Organisation[]>;
 
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUsersByUsername(username: string): Promise<User[]>;
+  getUserByUsernameInOrg(username: string, organisationId: number): Promise<User | undefined>;
+  getOrganisationByName(name: string): Promise<Organisation | undefined>;
   getUserById(id: number): Promise<User | undefined>;
   getUsers(organisationId: number): Promise<User[]>;
   createUser(data: InsertUser): Promise<User>;
@@ -109,10 +114,10 @@ export interface IStorage {
   getAuditLogs(matterId?: number): Promise<AuditLog[]>;
   createAuditLog(data: InsertAuditLog): Promise<AuditLog>;
 
-  getKnowledgeResources(): Promise<KnowledgeResource[]>;
-  getKnowledgeResource(id: number): Promise<KnowledgeResource | undefined>;
+  getKnowledgeResources(organisationId?: number): Promise<KnowledgeResource[]>;
+  getKnowledgeResource(id: number, organisationId?: number): Promise<KnowledgeResource | undefined>;
   createKnowledgeResource(data: InsertKnowledgeResource): Promise<KnowledgeResource>;
-  deleteKnowledgeResource(id: number): Promise<void>;
+  deleteKnowledgeResource(id: number, organisationId?: number): Promise<void>;
 
   getEnquiriesLibrary(): Promise<EnquiriesLibraryItem[]>;
   getEnquiriesLibraryItem(id: number): Promise<EnquiriesLibraryItem | undefined>;
@@ -166,13 +171,55 @@ class DatabaseStorage implements IStorage {
     return org;
   }
 
+  async updateOrganisation(
+    id: number,
+    data: Partial<InsertOrganisation> & { status?: string; subscriptionPlan?: string; updatedAt?: Date },
+  ): Promise<Organisation | undefined> {
+    const [org] = await db
+      .update(organisations)
+      .set({ ...data, updatedAt: data.updatedAt || new Date() })
+      .where(eq(organisations.id, id))
+      .returning();
+    return org;
+  }
+
   async getOrganisations(): Promise<Organisation[]> {
     return db.select().from(organisations);
   }
 
+  async getFirmOrganisations(): Promise<Organisation[]> {
+    return db
+      .select()
+      .from(organisations)
+      .where(eq(organisations.isPlatform, false))
+      .orderBy(organisations.name);
+  }
+
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
+    const rows = await db.select().from(users).where(eq(users.username, username));
+    if (rows.length === 0) return undefined;
+    if (rows.length > 1) return undefined; // ambiguous — caller must use org-scoped lookup
+    return rows[0];
+  }
+
+  async getUsersByUsername(username: string): Promise<User[]> {
+    return db.select().from(users).where(eq(users.username, username));
+  }
+
+  async getUserByUsernameInOrg(username: string, organisationId: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(
+      and(eq(users.username, username), eq(users.organisationId, organisationId)),
+    );
     return user;
+  }
+
+  async getOrganisationByName(name: string): Promise<Organisation | undefined> {
+    const needle = name.trim().toLowerCase();
+    const [org] = await db
+      .select()
+      .from(organisations)
+      .where(sql`lower(${organisations.name}) = ${needle}`);
+    return org;
   }
 
   async getUserById(id: number): Promise<User | undefined> {
@@ -464,12 +511,21 @@ class DatabaseStorage implements IStorage {
     return log;
   }
 
-  async getKnowledgeResources(): Promise<KnowledgeResource[]> {
+  async getKnowledgeResources(organisationId?: number): Promise<KnowledgeResource[]> {
+    if (organisationId != null) {
+      return db
+        .select()
+        .from(knowledgeResources)
+        .where(eq(knowledgeResources.organisationId, organisationId))
+        .orderBy(desc(knowledgeResources.createdAt));
+    }
     return db.select().from(knowledgeResources).orderBy(desc(knowledgeResources.createdAt));
   }
 
-  async getKnowledgeResource(id: number): Promise<KnowledgeResource | undefined> {
-    const [resource] = await db.select().from(knowledgeResources).where(eq(knowledgeResources.id, id));
+  async getKnowledgeResource(id: number, organisationId?: number): Promise<KnowledgeResource | undefined> {
+    const conditions = [eq(knowledgeResources.id, id)];
+    if (organisationId != null) conditions.push(eq(knowledgeResources.organisationId, organisationId));
+    const [resource] = await db.select().from(knowledgeResources).where(and(...conditions));
     return resource;
   }
 
@@ -478,11 +534,18 @@ class DatabaseStorage implements IStorage {
     return resource;
   }
 
-  async deleteKnowledgeResource(id: number): Promise<void> {
+  async deleteKnowledgeResource(id: number, organisationId?: number): Promise<void> {
+    if (organisationId != null) {
+      await db
+        .delete(knowledgeResources)
+        .where(and(eq(knowledgeResources.id, id), eq(knowledgeResources.organisationId, organisationId)));
+      return;
+    }
     await db.delete(knowledgeResources).where(eq(knowledgeResources.id, id));
   }
 
   async getEnquiriesLibrary(): Promise<EnquiriesLibraryItem[]> {
+    // RLS allows shared (NULL) + current org; no extra filter needed under request context
     return db.select().from(enquiriesLibrary).orderBy(enquiriesLibrary.category, enquiriesLibrary.title);
   }
 
@@ -789,6 +852,7 @@ class DatabaseStorage implements IStorage {
   }
 
   async getRuleTemplates(matterType?: string): Promise<RuleTemplate[]> {
+    // Shared (NULL org) + current-org rows via RLS
     if (matterType) {
       return db.select().from(ruleTemplates).where(eq(ruleTemplates.matterType, matterType));
     }

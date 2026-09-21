@@ -1,19 +1,29 @@
 import type { Express, Request, Response } from "express";
 import OpenAI from "openai";
 import { chatStorage } from "./storage";
+import {
+  aiNotConfiguredError,
+  isAiConfigured,
+  resolveAiApiKey,
+  resolveAiBaseUrl,
+  resolveAiModel,
+} from "../../ai-config";
 
 const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY || "placeholder",
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || undefined,
+  apiKey: resolveAiApiKey() || "missing-key",
+  baseURL: resolveAiBaseUrl(),
 });
 
-const AI_MODEL = process.env.AI_MODEL || (process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ? "gpt-5.1" : "gpt-4o");
+const AI_MODEL = resolveAiModel();
+
+function getOrgId(req: Request): number {
+  return (req as any).organisationId as number;
+}
 
 export function registerChatRoutes(app: Express): void {
-  // Get all conversations
   app.get("/api/conversations", async (req: Request, res: Response) => {
     try {
-      const conversations = await chatStorage.getAllConversations();
+      const conversations = await chatStorage.getAllConversations(getOrgId(req));
       res.json(conversations);
     } catch (error) {
       console.error("Error fetching conversations:", error);
@@ -21,11 +31,10 @@ export function registerChatRoutes(app: Express): void {
     }
   });
 
-  // Get single conversation with messages
   app.get("/api/conversations/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(String(req.params.id));
-      const conversation = await chatStorage.getConversation(id);
+      const conversation = await chatStorage.getConversation(id, getOrgId(req));
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
       }
@@ -37,11 +46,10 @@ export function registerChatRoutes(app: Express): void {
     }
   });
 
-  // Create new conversation
   app.post("/api/conversations", async (req: Request, res: Response) => {
     try {
       const { title } = req.body;
-      const conversation = await chatStorage.createConversation(title || "New Chat");
+      const conversation = await chatStorage.createConversation(title || "New Chat", getOrgId(req));
       res.status(201).json(conversation);
     } catch (error) {
       console.error("Error creating conversation:", error);
@@ -49,11 +57,12 @@ export function registerChatRoutes(app: Express): void {
     }
   });
 
-  // Delete conversation
   app.delete("/api/conversations/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(String(req.params.id));
-      await chatStorage.deleteConversation(id);
+      const existing = await chatStorage.getConversation(id, getOrgId(req));
+      if (!existing) return res.status(404).json({ error: "Conversation not found" });
+      await chatStorage.deleteConversation(id, getOrgId(req));
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting conversation:", error);
@@ -61,28 +70,29 @@ export function registerChatRoutes(app: Express): void {
     }
   });
 
-  // Send message and get AI response (streaming)
   app.post("/api/conversations/:id/messages", async (req: Request, res: Response) => {
     try {
+      if (!isAiConfigured()) return res.status(503).json(aiNotConfiguredError());
       const conversationId = parseInt(String(req.params.id));
+      const conversation = await chatStorage.getConversation(conversationId, getOrgId(req));
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
       const { content } = req.body;
 
-      // Save user message
       await chatStorage.createMessage(conversationId, "user", content);
 
-      // Get conversation history for context
       const messages = await chatStorage.getMessagesByConversation(conversationId);
+      const { redactSensitiveData } = await import("../../enquiries-ai");
       const chatMessages = messages.map((m) => ({
         role: m.role as "user" | "assistant",
-        content: m.content,
+        content: redactSensitiveData(m.content),
       }));
 
-      // Set up SSE
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      // Stream response from OpenAI
       const stream = await openai.chat.completions.create({
         model: AI_MODEL,
         messages: chatMessages,
@@ -100,14 +110,12 @@ export function registerChatRoutes(app: Express): void {
         }
       }
 
-      // Save assistant message
       await chatStorage.createMessage(conversationId, "assistant", fullResponse);
 
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
     } catch (error) {
       console.error("Error sending message:", error);
-      // Check if headers already sent (SSE streaming started)
       if (res.headersSent) {
         res.write(`data: ${JSON.stringify({ error: "Failed to send message" })}\n\n`);
         res.end();
@@ -117,4 +125,3 @@ export function registerChatRoutes(app: Express): void {
     }
   });
 }
-

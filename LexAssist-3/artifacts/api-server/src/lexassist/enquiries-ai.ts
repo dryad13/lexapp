@@ -2,13 +2,25 @@ import OpenAI from "openai";
 import fs from "fs";
 import { storage } from "./storage";
 import type { Matter, Document as MatterDocument } from "../shared/schema";
+import {
+  isAiConfigured,
+  resolveAiApiKey,
+  resolveAiBaseUrl,
+  resolveAiModel,
+} from "./ai-config";
 
 const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY || "placeholder",
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || undefined,
+  apiKey: resolveAiApiKey() || "missing-key",
+  baseURL: resolveAiBaseUrl(),
 });
 
-const AI_MODEL = process.env.AI_MODEL || (process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ? "gpt-5.1" : "gpt-4o");
+const AI_MODEL = resolveAiModel();
+
+function assertAiConfigured() {
+  if (!isAiConfigured()) {
+    throw new Error("AI_NOT_CONFIGURED");
+  }
+}
 
 const REDACTION_PATTERNS = [
   { pattern: /\b[A-Z]{2}\s?\d{2}\s?\d{2}\s?\d{2}\s?[A-Z]\b/gi, replacement: "[NI NUMBER REDACTED]" },
@@ -199,6 +211,7 @@ export async function generatePurchaseEnquiriesPack(
   matter: Matter,
   documentIds: number[]
 ): Promise<{ contentJson: Record<string, any>; contentMarkdown: string; riskFlags: string[] }> {
+  assertAiConfigured();
   const docs = [];
   for (const id of documentIds) {
     const doc = await storage.getDocument(id);
@@ -249,6 +262,7 @@ export async function generateSaleRepliesPack(
   enquiryDocId: number,
   supportingDocIds: number[]
 ): Promise<{ contentJson: Record<string, any>; contentMarkdown: string; riskFlags: string[] }> {
+  assertAiConfigured();
   const enquiryDoc = await storage.getDocument(enquiryDocId);
   const supportingDocs = [];
   for (const id of supportingDocIds) {
@@ -372,6 +386,7 @@ export async function analyseSearchResults(
   libraryItems: { id: number; title: string; enquiryText: string; category: string; subcategory: string | null; tags: string[] | null; whenToUse: string | null; graceParagraph: string | null }[],
   documentContent?: string
 ): Promise<{ contentJson: Record<string, any>; contentMarkdown: string }> {
+  assertAiConfigured();
   const knowledgeCtx = await getKnowledgeContext();
 
   const libraryContext = libraryItems.map(item =>
